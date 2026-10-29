@@ -158,6 +158,16 @@ public static class Texts
         Add("shared.servicecharge", "Обслуживание", "Service charge", "Xizmat ko‘rsatish");
         Add("shared.tips", "Чаевые", "Tips", "Choychaqa");
         Add("tip.shared", "· общее", "· shared", "· umumiy");
+        Add("receipt.view", "Просмотр", "View", "Ko‘rish");
+        Add("receipt.title", "Чек", "Receipt", "Chek");
+        Add("receipt.notFound", "Чек не найден.", "Receipt not found.", "Chek topilmadi.");
+        Add("receipt.hidden", "Этот ресторан убран из дня: чек скрыт, но сохранён.", "This restaurant was removed from the day: the receipt is hidden but kept.", "Bu restoran kundan olib tashlangan: chek yashirilgan, lekin saqlangan.");
+        Add("receipt.print", "Печать", "Print", "Chop etish");
+        Add("receipt.backToDay", "К дню", "Back to day", "Kunga");
+        Add("receipt.own", "Личные позиции", "Own items", "Shaxsiy pozitsiyalar");
+        Add("receipt.share", "доля общих", "share of shared", "umumiy ulush");
+        Add("receipt.file", "Файл чека", "Receipt file", "Chek fayli");
+        Add("receipt.noItems", "Позиций нет", "No items", "Pozitsiyalar yo‘q");
         Add("tip.attached", "🧾 чек прикреплён", "🧾 receipt attached", "🧾 chek biriktirilgan");
 
         // ---- голосование ----

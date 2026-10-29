@@ -47,7 +47,24 @@ public sealed class MealRepository
         var meals = (await conn.QueryAsync<Meal>(
             SelectSql + "WHERE m.is_hidden = 0 AND m.date BETWEEN @from AND @to ORDER BY m.date, m.is_main DESC, m.id",
             new { from = Key(from), to = Key(to) })).ToList();
-        if (meals.Count == 0) return meals;
+        await FillAsync(conn, meals);
+        return meals;
+    }
+
+    /// <summary>Один приём со всеми деталями, включая скрытый (для страницы чека).</summary>
+    public async Task<Meal?> GetFullByIdAsync(long id)
+    {
+        using var conn = _factory.Open();
+        var meal = await conn.QuerySingleOrDefaultAsync<Meal>(SelectSql + "WHERE m.id = @id", new { id });
+        if (meal is null) return null;
+        await FillAsync(conn, new List<Meal> { meal });
+        return meal;
+    }
+
+    /// <summary>Догружает участников, их позиции и общие сборы.</summary>
+    private static async Task FillAsync(Microsoft.Data.Sqlite.SqliteConnection conn, List<Meal> meals)
+    {
+        if (meals.Count == 0) return;
 
         var mealIds = meals.Select(m => m.Id).ToArray();
         var participants = (await conn.QueryAsync<MealParticipant>(
@@ -75,7 +92,6 @@ public sealed class MealRepository
         }
         var sharedByMeal = shared.ToLookup(s => s.MealId);
         foreach (var m in meals) m.SharedItems = sharedByMeal[m.Id].ToList();
-        return meals;
     }
 
     public async Task<Meal?> GetByIdAsync(long id)

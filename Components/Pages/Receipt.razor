@@ -1,0 +1,158 @@
+@page "/receipt/{MealId:long}"
+@implements IDisposable
+@inject MealService Meals
+@inject ChangeNotifier Notifier
+@inject I18n L
+
+<PageTitle>@(_meal is null ? L["receipt.title"] : $"{L["receipt.title"]} · {_meal.RestaurantName} · {L.DateLong(_meal.DateValue)}")</PageTitle>
+
+@if (_loading)
+{
+    <p class="muted">@L["ui.loading"]</p>
+}
+else if (_meal is null)
+{
+    <div class="alert">@L["receipt.notFound"] <a href="/">@L["day.toCalendar"]</a></div>
+}
+else
+{
+    var m = _meal;
+    <div class="rcpt-bar">
+        <a class="btn" href="/day/@CalendarService.Key(m.DateValue)">← @L["receipt.backToDay"]</a>
+        <button type="button" class="btn btn--primary" onclick="window.print()">🖨 @L["receipt.print"]</button>
+    </div>
+
+    @if (m.IsHidden)
+    {
+        <p class="alert">@L["receipt.hidden"]</p>
+    }
+
+    <article class="rcpt">
+        <header class="rcpt__head">
+            <RestaurantThumb Name="@m.RestaurantName" ImageFile="@m.ImageFile" CssClass="thumb--card" />
+            <div class="rcpt__title">
+                <div class="rcpt__kicker">@L["receipt.title"] · @(m.IsMain ? L["day.mainDish"] : m.Label)</div>
+                <h1>@m.RestaurantName</h1>
+                <div class="muted">@L.DateFull(m.DateValue) · @L[m.Mode == "dinein" ? "meal.modeDineIn" : "meal.modeDelivery"]</div>
+            </div>
+            <div class="rcpt__grand">
+                <span class="rcpt__grand-label">@L["meal.total"]</span>
+                <span class="rcpt__grand-sum">@Money.Format(m.ItemsTotal)</span>
+            </div>
+        </header>
+
+        @if (m.Participants.Count == 0)
+        {
+            <p class="muted">@L["meal.nobody"]</p>
+        }
+        @foreach (var p in m.Participants)
+        {
+            <section class="rcpt__person" @key="p.Id">
+                <div class="rcpt__person-head">
+                    <b>@p.Name</b>
+                    <span class="pay @(p.IsPaid ? "pay--paid" : "pay--pending")">@(p.IsPaid ? "✅ " + L["pay.paid"] : "⏳ " + L["pay.pending"])</span>
+                    <span class="rcpt__person-sum">@Money.Format(m.TotalFor(p))</span>
+                </div>
+                @if (p.Items.Count == 0)
+                {
+                    <div class="muted small">@L["receipt.noItems"]</div>
+                }
+                else
+                {
+                    <table class="rcpt__items">
+                        <tbody>
+                        @foreach (var it in p.Items)
+                        {
+                            <tr @key="it.Id">
+                                <td class="rcpt__name">@it.Name</td>
+                                <td class="rcpt__num muted">@(it.Qty > 1 ? $"{Money.Format(it.Price)} × {it.Qty}" : "")</td>
+                                <td class="rcpt__num">@Money.Format((it.Price ?? 0) * it.Qty)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                }
+                @if (m.SharedItems.Count > 0)
+                {
+                    <div class="rcpt__sub">
+                        <span>@L["receipt.own"] @Money.Format(p.Subtotal)</span>
+                        <span>+ @L["receipt.share"] @Money.Format(m.ShareFor(p.Id))</span>
+                    </div>
+                }
+            </section>
+        }
+
+        @if (m.SharedItems.Count > 0)
+        {
+            <section class="rcpt__shared">
+                <div class="rcpt__section-title">@L["meal.shared"] <span class="rcpt__person-sum">@Money.Format(m.SharedTotal)</span></div>
+                <table class="rcpt__items">
+                    <tbody>
+                    @foreach (var s in m.SharedItems)
+                    {
+                        <tr @key="s.Id">
+                            <td class="rcpt__name">@s.Name <span class="muted small">· @Meals.SharedKindTitle(s.Kind) · @SplitText(m, s)</span></td>
+                            <td class="rcpt__num muted">@(s.Qty > 1 ? $"{Money.Format(s.Price)} × {s.Qty}" : "")</td>
+                            <td class="rcpt__num">@Money.Format(s.Amount)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </section>
+        }
+
+        <footer class="rcpt__foot">
+            <div class="rcpt__totals">
+                <div><span>@L["receipt.own"]</span><b>@Money.Format(m.OwnItemsTotal)</b></div>
+                <div><span>@L["meal.shared"]</span><b>@Money.Format(m.SharedTotal)</b></div>
+                <div class="rcpt__totals-grand"><span>@L["meal.total"]</span><b>@Money.Format(m.ItemsTotal)</b></div>
+            </div>
+            @if (m.ReceiptFile is { } rf)
+            {
+                <div class="rcpt__file">
+                    <div class="rcpt__section-title">@L["receipt.file"]</div>
+                    @if (ReceiptService.IsPdf(rf))
+                    {
+                        <a class="btn btn--sm" href="@ReceiptService.Url(rf)" target="_blank">@L["meal.openPdf"]</a>
+                    }
+                    else
+                    {
+                        <a href="@ReceiptService.Url(rf)" target="_blank" title="@L["meal.openReceipt"]">
+                            <img class="rcpt__img" src="@ReceiptService.Url(rf)" alt="@L["meal.receipt"]" loading="lazy" />
+                        </a>
+                    }
+                </div>
+            }
+        </footer>
+    </article>
+}
+
+@code {
+    [Parameter] public long MealId { get; set; }
+
+    private Meal? _meal;
+    private bool _loading = true;
+
+    protected override void OnInitialized() => Notifier.Changed += OnChangedAsync;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _meal = await Meals.GetMealAsync(MealId);
+        _loading = false;
+    }
+
+    private Task OnChangedAsync() => InvokeAsync(async () =>
+    {
+        _meal = await Meals.GetMealAsync(MealId);
+        StateHasChanged();
+    });
+
+    private string SplitText(Meal m, SharedItem s)
+    {
+        if (s.SplitAll) return m.Participants.Count > 0 ? L.F("meal.splitAllN", m.Participants.Count) : L["meal.splitAll"];
+        var names = m.Participants.Where(p => s.ParticipantIds.Contains(p.Id)).Select(p => p.Name).ToList();
+        return names.Count == 0 ? L["meal.splitNone"] : L.F("meal.splitFor", string.Join(", ", names));
+    }
+
+    public void Dispose() => Notifier.Changed -= OnChangedAsync;
+}

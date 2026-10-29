@@ -132,6 +132,9 @@ public sealed class MealService
         return hidden.Id;
     }
 
+    /// <summary>Приём для страницы чека, включая скрытый; null, если не найден.</summary>
+    public Task<Meal?> GetMealAsync(long mealId) => _meals.GetFullByIdAsync(mealId);
+
     /// <summary>Приём с участниками, позициями и сборами.</summary>
     private async Task<Meal> GetFullAsync(long mealId)
     {

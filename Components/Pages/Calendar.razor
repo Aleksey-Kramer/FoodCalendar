@@ -80,6 +80,7 @@ else
                                         <div class="tip__meal tip__main">
                                             <div class="tip__title">
                                                 <b>@mm.RestaurantName</b>
+                                                @if (mm.HasReceiptData) { <a class="btn btn--sm tip__view" href="/receipt/@mm.Id">@L["receipt.view"] →</a> }
                                                 @if (!mm.HasReceiptData) { <span class="tip__none tip__none--always">@L["cal.noReceipt"]</span> }
                                             </div>
                                             @if (mm.HasReceiptData) { <ReceiptTip Meal="mm" /> }
@@ -94,6 +95,7 @@ else
                                                     <div class="tip__title">
                                                         <span class="chip">@ex.Label</span>
                                                         <b>@ex.RestaurantName</b>
+                                                        @if (ex.HasReceiptData) { <a class="btn btn--sm tip__view" href="/receipt/@ex.Id">@L["receipt.view"] →</a> }
                                                         @if (!ex.HasReceiptData) { <span class="tip__none">@L["cal.noReceipt"]</span> }
                                                     </div>
                                                     @if (ex.HasReceiptData) { <ReceiptTip Meal="ex" /> }
