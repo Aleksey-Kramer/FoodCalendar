@@ -72,35 +72,29 @@ else
                         </button>
                         @if (_details.TryGetValue(day.Date, out var det) && det.All.Any(x => x.HasReceiptData))
                         {
+                            var openId = OpenTipMeal(day.Date, det);
                             <div class="tip @(c >= 4 ? "tip--left" : "") @(weekIndex >= 3 ? "tip--up" : "")">
                                 <div class="tip__card">
                                     <div class="tip__date">@L.DateLong(day.Date)</div>
-                                    @if (det.Main is { } mm)
+                                    @* Аккордеон: одновременно раскрыт только один чек; стрелка ▸ закрыт / ▾ открыт *@
+                                    @foreach (var tm in det.All)
                                     {
-                                        <div class="tip__meal tip__main">
-                                            <div class="tip__title">
-                                                <b>@mm.RestaurantName</b>
-                                                @if (mm.HasReceiptData) { <a class="btn btn--sm tip__view" href="/receipt/@mm.Id">@L["receipt.view"] →</a> }
-                                                @if (!mm.HasReceiptData) { <span class="tip__none tip__none--always">@L["cal.noReceipt"]</span> }
+                                        var isOpen = openId == tm.Id;
+                                        <div class="tip__item @(tm.IsMain ? "tip__main" : "tip__extra") @(isOpen ? "tip__item--open" : "") @(tm.HasReceiptData ? "" : "tip__item--none")" @key="tm.Id">
+                                            <div class="tip__head" role="button" tabindex="0" @onclick="() => ToggleTip(day.Date, tm)">
+                                                <svg class="tip__chev" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M7 5l6 5-6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                @if (!tm.IsMain) { <span class="chip">@tm.Label</span> }
+                                                <b>@tm.RestaurantName</b>
+                                                @if (tm.HasReceiptData)
+                                                {
+                                                    <a class="btn btn--sm tip__view" href="/receipt/@tm.Id" @onclick:stopPropagation="true">@L["receipt.view"] →</a>
+                                                }
+                                                else
+                                                {
+                                                    <span class="tip__none">@L["cal.noReceipt"]</span>
+                                                }
                                             </div>
-                                            @if (mm.HasReceiptData) { <ReceiptTip Meal="mm" /> }
-                                        </div>
-                                    }
-                                    @if (det.Extras.Count > 0)
-                                    {
-                                        <div class="tip__extras">
-                                            @foreach (var ex in det.Extras)
-                                            {
-                                                <div class="tip__extra @(ex.HasReceiptData ? "tip__extra--has" : "tip__extra--none")" @key="ex.Id">
-                                                    <div class="tip__title">
-                                                        <span class="chip">@ex.Label</span>
-                                                        <b>@ex.RestaurantName</b>
-                                                        @if (ex.HasReceiptData) { <a class="btn btn--sm tip__view" href="/receipt/@ex.Id">@L["receipt.view"] →</a> }
-                                                        @if (!ex.HasReceiptData) { <span class="tip__none">@L["cal.noReceipt"]</span> }
-                                                    </div>
-                                                    @if (ex.HasReceiptData) { <ReceiptTip Meal="ex" /> }
-                                                </div>
-                                            }
+                                            @if (isOpen) { <ReceiptTip Meal="tm" /> }
                                         </div>
                                     }
                                 </div>
@@ -201,6 +195,22 @@ else
     }
 
     private Dictionary<DateOnly, DayDetails> _details = new();
+    // Раскрытый чек в подсказке по дням (0 — всё свёрнуто); по умолчанию — первый чек с данными
+    private readonly Dictionary<DateOnly, long> _openTip = new();
+
+    private long OpenTipMeal(DateOnly date, DayDetails det)
+    {
+        if (_openTip.TryGetValue(date, out var id))
+            return id == 0 || det.All.Any(m => m.Id == id && m.HasReceiptData) ? id : Default();
+        return Default();
+        long Default() => det.All.FirstOrDefault(m => m.HasReceiptData)?.Id ?? 0;
+    }
+
+    private void ToggleTip(DateOnly date, Meal meal)
+    {
+        if (!meal.HasReceiptData) return;
+        _openTip[date] = OpenTipMeal(date, _details[date]) == meal.Id ? 0 : meal.Id;
+    }
 
     private async Task LoadAsync()
     {
