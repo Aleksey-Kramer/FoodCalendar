@@ -1,5 +1,6 @@
+@using FoodCalendar.Services
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="@_lang" data-theme="@_theme">
 
 <head>
     <meta charset="utf-8" />
@@ -11,10 +12,26 @@
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="InteractiveServer" Lang="@_lang" />
     <script src="app.js"></script>
     <script src="dropzone.js"></script>
     <script src="_framework/blazor.web.js"></script>
 </body>
 
 </html>
+
+@code {
+    // Язык и тема хранятся в cookie, чтобы уже предрендер шёл на нужном языке и без мигания темы.
+    [CascadingParameter] public HttpContext? HttpContext { get; set; }
+
+    private string _lang = "ru";
+    private string? _theme;
+
+    protected override void OnInitialized()
+    {
+        var cookies = HttpContext?.Request.Cookies;
+        _lang = I18n.Normalize(cookies?[I18n.CookieName]);
+        var theme = cookies?["fc.theme"];
+        _theme = theme is "light" or "dark" ? theme : null;
+    }
+}

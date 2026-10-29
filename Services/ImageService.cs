@@ -9,7 +9,7 @@ public sealed class ImageService
 {
     public const long MaxBytes = 2 * 1024 * 1024;
     public const string Accept = "image/jpeg,image/png,image/webp,image/svg+xml";
-    private const string TypeError = "Допустимы только изображения JPEG, PNG, WebP или SVG.";
+    private const string TypeError = "err.imageType";
 
     private readonly StorageOptions _storage;
 
@@ -22,9 +22,9 @@ public sealed class ImageService
     public async Task<byte[]> ReadAndValidateAsync(IBrowserFile file)
     {
         if (file.Size > MaxBytes)
-            throw new ValidationException("Файл больше 2 МБ.");
+            throw new ValidationException("err.fileTooBig2");
         if (file.Size == 0)
-            throw new ValidationException("Файл пустой.");
+            throw new ValidationException("err.fileEmpty");
 
         using var ms = new MemoryStream((int)file.Size);
         await using (var stream = file.OpenReadStream(MaxBytes))
@@ -41,7 +41,7 @@ public sealed class ImageService
     public async Task<string> SaveAsync(byte[] bytes)
     {
         if (bytes.Length == 0 || bytes.Length > MaxBytes)
-            throw new ValidationException("Файл пустой или больше 2 МБ.");
+            throw new ValidationException("err.fileEmptyOrBig");
         Validate(bytes);
         var ext = DetectExtension(bytes)!;
 
@@ -81,7 +81,7 @@ public sealed class ImageService
     {
         var ext = DetectExtension(bytes) ?? throw new ValidationException(TypeError);
         if (ext == ".svg" && SvgHasScript(bytes))
-            throw new ValidationException("SVG со скриптами или обработчиками событий не принимается.");
+            throw new ValidationException("err.svgScript");
     }
 
     /// <summary>Определяет тип по сигнатуре (magic bytes), а не по расширению или Content-Type.</summary>

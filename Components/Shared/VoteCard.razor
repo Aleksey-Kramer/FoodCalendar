@@ -1,18 +1,19 @@
 @inject VoteService Votes
+@inject I18n L
 
 @* Одно открытое голосование: варианты, свой выбор, завершение, добавление ресторана, отмена. *@
 <div class="vote__card">
     <div class="vote__card-head">
         <h3 class="vote__card-title">
-            @(Vote.DateValue == CalendarService.Today ? "Сегодня" : "На " + CalendarService.FormatLong(Vote.DateValue))
-            <span class="muted small">· раунд @Vote.Round · начал(а) @Vote.CreatedBy · завершили @Vote.FinishedCount из @Vote.Participants.Count</span>
+            @(Vote.DateValue == CalendarService.Today ? L["ui.today"] : L.F("vote.forDate", L.DateLong(Vote.DateValue)))
+            <span class="muted small">@L.F("vote.meta", Vote.Round, Vote.CreatedBy, Vote.FinishedCount, Vote.Participants.Count)</span>
         </h3>
-        <span class="vote__count">Проголосовало @Vote.VotedCount @Plural(Vote.VotedCount, "человек", "человека", "человек")</span>
+        <span class="vote__count">@L.F("vote.voted", Vote.VotedCount, L.Plural("vote.people", Vote.VotedCount))</span>
     </div>
 
     @if (Vote.TieNames is not null)
     {
-        <p class="small"><b>Ничья между: @Vote.TieNames. Переголосуйте.</b></p>
+        <p class="small"><b>@L.F("vote.tie", Vote.TieNames)</b></p>
     }
     @if (_error is not null)
     {
@@ -27,44 +28,44 @@
                 <input type="checkbox" checked="@checkedNow" @onchange="e => Toggle(o.Id, e.Value is true)" />
                 <RestaurantThumb Name="@o.RestaurantName" ImageFile="@o.ImageFile" CssClass="thumb--cell" />
                 <span class="vote__option-name">@o.RestaurantName</span>
-                <span class="vote__option-votes" title="Голосов">@o.Votes</span>
+                <span class="vote__option-votes" title="@L["vote.votes"]">@o.Votes</span>
             </label>
         }
     </div>
 
     <div class="vote__actions">
-        <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Cast">Голосовать</button>
+        <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Cast">@L["vote.cast"]</button>
         <button type="button" class="btn" disabled="@(_busy || Me is not { HasVoted: true } || Me.IsFinished)" @onclick="Finish">
-            @(Me is { IsFinished: true } ? "Вы завершили, ждём остальных" : "Завершить голосование")
+            @(Me is { IsFinished: true } ? L["vote.finished"] : L["vote.finish"])
         </button>
         <span class="vote__add">
             <select class="input" @bind="_addRestaurantId">
-                <option value="">Добавить ресторан…</option>
+                <option value="">@L["vote.addRestaurant"]</option>
                 @foreach (var r in Active.Where(r => Vote.Options.All(o => o.RestaurantId != r.Id)))
                 {
                     <option value="@r.Id">@r.Name</option>
                 }
             </select>
-            <button type="button" class="btn btn--sm" disabled="@(_busy || _addRestaurantId == "")" @onclick="AddOption">Добавить</button>
+            <button type="button" class="btn btn--sm" disabled="@(_busy || _addRestaurantId == "")" @onclick="AddOption">@L["ui.add"]</button>
         </span>
         @if (_confirmCancel)
         {
             <span class="confirm">
-                Отменить голосование для всех?
-                <button type="button" class="btn btn--sm btn--danger" @onclick="Cancel">Да</button>
-                <button type="button" class="btn btn--sm" @onclick="() => _confirmCancel = false">Нет</button>
+                @L["vote.cancelAll"]
+                <button type="button" class="btn btn--sm btn--danger" @onclick="Cancel">@L["ui.yes"]</button>
+                <button type="button" class="btn btn--sm" @onclick="() => _confirmCancel = false">@L["ui.no"]</button>
             </span>
         }
         else
         {
-            <button type="button" class="btn btn--sm btn--danger vote__cancel" @onclick="() => _confirmCancel = true">Отменить</button>
+            <button type="button" class="btn btn--sm btn--danger vote__cancel" @onclick="() => _confirmCancel = true">@L["vote.cancel"]</button>
         }
     </div>
 
     <ul class="vote__people">
         @foreach (var p in Vote.Participants)
         {
-            <li @key="p.Id" title="@(p.IsFinished ? "Завершил(а)" : p.HasVoted ? "Проголосовал(а), ещё не завершил(а)" : "Ещё не голосовал(а)")">
+            <li @key="p.Id" title="@(p.IsFinished ? L["vote.pFinished"] : p.HasVoted ? L["vote.pVoted"] : L["vote.pWaiting"])">
                 <span>@(p.IsFinished ? "🏁" : p.HasVoted ? "✅" : "⏳")</span> @p.Name
             </li>
         }
@@ -112,7 +113,7 @@
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
         finally
         {
@@ -126,7 +127,7 @@
 
     private Task AddOption() => Run(async () =>
     {
-        if (!long.TryParse(_addRestaurantId, out var rid)) throw new ValidationException("Выберите ресторан.");
+        if (!long.TryParse(_addRestaurantId, out var rid)) throw new ValidationException("day.selectRestaurant");
         await Votes.AddOptionAsync(Vote.Id, Name, rid);
         _addRestaurantId = "";
     });

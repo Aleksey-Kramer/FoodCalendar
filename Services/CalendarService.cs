@@ -11,29 +11,11 @@ public sealed class MonthGrid
 {
     public int Year { get; init; }
     public int Month { get; init; }
-    public string Title { get; init; } = "";
     public List<CalendarDay[]> Weeks { get; init; } = new();
 }
 
 public sealed class CalendarService
 {
-    public static readonly string[] MonthNames =
-    {
-        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
-    };
-
-    public static readonly string[] MonthNamesGenitive =
-    {
-        "января", "февраля", "марта", "апреля", "мая", "июня",
-        "июля", "августа", "сентября", "октября", "ноября", "декабря"
-    };
-
-    public static readonly string[] WeekdayNames =
-    {
-        "воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"
-    };
-
     private readonly MealRepository _meals;
 
     public CalendarService(MealRepository meals) => _meals = meals;
@@ -42,14 +24,6 @@ public sealed class CalendarService
         date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
 
     public static DateOnly Today => DateOnly.FromDateTime(DateTime.Now);
-
-    /// <summary>Например: 29 октября, среда</summary>
-    public static string FormatLong(DateOnly date) =>
-        $"{date.Day} {MonthNamesGenitive[date.Month - 1]}, {WeekdayNames[(int)date.DayOfWeek]}";
-
-    /// <summary>Например: 29 октября 2026, среда</summary>
-    public static string FormatFull(DateOnly date) =>
-        $"{date.Day} {MonthNamesGenitive[date.Month - 1]} {date.Year}, {WeekdayNames[(int)date.DayOfWeek]}";
 
     public static string Key(DateOnly date) => MealRepository.Key(date);
 
@@ -85,7 +59,6 @@ public sealed class CalendarService
         {
             Year = year,
             Month = month,
-            Title = $"{MonthNames[month - 1]} {year}",
             Weeks = weeks
         };
     }

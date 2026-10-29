@@ -7,7 +7,7 @@ namespace FoodCalendar.Repositories;
 public sealed class MealRepository
 {
     private const string SelectSql =
-        "SELECT m.id, m.date, m.restaurant_id, m.is_main, m.is_hidden, m.label, m.receipt_file, m.total_amount, m.updated_at, " +
+        "SELECT m.id, m.date, m.restaurant_id, m.is_main, m.is_hidden, m.mode, m.label, m.receipt_file, m.total_amount, m.updated_at, " +
         "       r.name AS restaurant_name, r.image_file AS image_file, r.is_active AS is_active " +
         "FROM meals m JOIN restaurants r ON r.id = m.restaurant_id ";
 
@@ -101,6 +101,14 @@ public sealed class MealRepository
     }
 
     /// <summary>Скрывает основное блюдо: ресторан убран, чек и участники остаются.</summary>
+    /// <summary>Формат чека: delivery (доставка) или dinein (еда на месте).</summary>
+    public async Task SetModeAsync(long id, string mode)
+    {
+        using var conn = _factory.Open();
+        await conn.ExecuteAsync("UPDATE meals SET mode = @mode, updated_at = @now WHERE id = @id",
+            new { id, mode, now = RestaurantRepository.Now() });
+    }
+
     public async Task SetHiddenAsync(long id, bool hidden)
     {
         using var conn = _factory.Open();

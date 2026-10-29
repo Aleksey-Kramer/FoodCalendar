@@ -22,9 +22,9 @@ public sealed class ReceiptService
     public async Task<string> SaveAsync(IBrowserFile file)
     {
         if (file.Size > MaxBytes)
-            throw new ValidationException("Файл чека больше 10 МБ.");
+            throw new ValidationException("err.receiptTooBig");
         if (file.Size == 0)
-            throw new ValidationException("Файл пустой.");
+            throw new ValidationException("err.fileEmpty");
 
         using var ms = new MemoryStream((int)file.Size);
         await using (var stream = file.OpenReadStream(MaxBytes))
@@ -34,7 +34,7 @@ public sealed class ReceiptService
         var bytes = ms.ToArray();
 
         var ext = DetectExtension(bytes)
-            ?? throw new ValidationException("Чек должен быть картинкой (JPEG, PNG, WebP) или PDF.");
+            ?? throw new ValidationException("err.receiptType");
 
         Directory.CreateDirectory(_storage.ReceiptsPath);
         var fileName = Guid.NewGuid().ToString("N") + ext;

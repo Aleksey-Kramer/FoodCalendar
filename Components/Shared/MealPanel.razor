@@ -1,5 +1,6 @@
 @inject MealService Meals
 @inject RestaurantService RestaurantSvc
+@inject I18n L
 
 <div class="meal">
     <div class="meal__head">
@@ -12,24 +13,24 @@
             <b>@Meal.RestaurantName</b>
             @if (!Meal.IsActive)
             {
-                <span class="badge">неактивен</span>
+                <span class="badge">@L["ui.inactive"]</span>
             }
         </div>
         <div class="meal__actions">
-            <button type="button" class="btn btn--sm" @onclick="() => OnChangeRestaurant.InvokeAsync(Meal)">Сменить ресторан</button>
+            <button type="button" class="btn btn--sm" @onclick="() => OnChangeRestaurant.InvokeAsync(Meal)">@L["day.changeRestaurant"]</button>
             @if (_confirmDelete)
             {
                 <span class="confirm">
                     @(Meal.IsMain && Meal.HasReceiptData
-                        ? "Убрать ресторан? Чек сохранится и появится снова при выборе ресторана."
-                        : Meal.IsMain ? "Убрать ресторан?" : "Удалить вместе с чеком и участниками?")
-                    <button type="button" class="btn btn--sm btn--danger" @onclick="() => OnDelete.InvokeAsync(Meal)">Да</button>
-                    <button type="button" class="btn btn--sm" @onclick="() => _confirmDelete = false">Нет</button>
+                        ? L["meal.removeMainKeep"]
+                        : Meal.IsMain ? L["meal.removeMain"] : L["meal.deleteExtra"])
+                    <button type="button" class="btn btn--sm btn--danger" @onclick="() => OnDelete.InvokeAsync(Meal)">@L["ui.yes"]</button>
+                    <button type="button" class="btn btn--sm" @onclick="() => _confirmDelete = false">@L["ui.no"]</button>
                 </span>
             }
             else
             {
-                <button type="button" class="btn btn--sm btn--danger" @onclick="() => _confirmDelete = true">@(Meal.IsMain ? "Убрать" : "Удалить")</button>
+                <button type="button" class="btn btn--sm btn--danger" @onclick="() => _confirmDelete = true">@(Meal.IsMain ? L["ui.remove"] : L["ui.delete"])</button>
             }
         </div>
     </div>
@@ -41,45 +42,45 @@
 
     <div class="meal__grid">
         <div class="meal__receipt">
-            <div class="field__label">Чек</div>
+            <div class="field__label">@L["meal.receipt"]</div>
             @if (Meal.ReceiptFile is { } rf)
             {
                 @if (ReceiptService.IsPdf(rf))
                 {
-                    <a class="btn btn--sm" href="@ReceiptService.Url(rf)" target="_blank">📄 Открыть PDF</a>
+                    <a class="btn btn--sm" href="@ReceiptService.Url(rf)" target="_blank">@L["meal.openPdf"]</a>
                 }
                 else
                 {
-                    <a href="@ReceiptService.Url(rf)" target="_blank" title="Открыть чек">
-                        <img class="receipt__img" src="@ReceiptService.Url(rf)" alt="Чек" loading="lazy" />
+                    <a href="@ReceiptService.Url(rf)" target="_blank" title="@L["meal.openReceipt"]">
+                        <img class="receipt__img" src="@ReceiptService.Url(rf)" alt="@L["meal.receipt"]" loading="lazy" />
                     </a>
                 }
-                <button type="button" class="btn btn--sm btn--danger" @onclick="RemoveReceipt" disabled="@_busy">Убрать чек</button>
+                <button type="button" class="btn btn--sm btn--danger" @onclick="RemoveReceipt" disabled="@_busy">@L["meal.removeReceipt"]</button>
             }
             else
             {
                 <label class="btn btn--sm file-btn">
-                    📎 Прикрепить чек
+                    @L["meal.attachReceipt"]
                     <InputFile OnChange="OnReceipt" accept="@ReceiptService.Accept" class="file-btn__input" />
                 </label>
-                <div class="muted small">Картинка или PDF, до 10 МБ</div>
+                <div class="muted small">@L["meal.receiptHint"]</div>
             }
 
             <div class="field">
-                <span class="field__label">Итого по чеку</span>
-                <div class="receipt__total" title="Считается из позиций участников и общих сборов">@Money.Format(Meal.ItemsTotal)</div>
+                <span class="field__label">@L["meal.total"]</span>
+                <div class="receipt__total" title="@L["meal.totalHint"]">@Money.Format(Meal.ItemsTotal)</div>
                 @if (Meal.SharedTotal > 0)
                 {
-                    <div class="small muted">личные @Money.Format(Meal.OwnItemsTotal) + общие @Money.Format(Meal.SharedTotal)</div>
+                    <div class="small muted">@L.F("meal.totalSplit", Money.Format(Meal.OwnItemsTotal), Money.Format(Meal.SharedTotal))</div>
                 }
             </div>
         </div>
 
         <div class="meal__people">
-            <div class="field__label">Участники</div>
+            <div class="field__label">@L["meal.participants"]</div>
             @if (Meal.Participants.Count == 0)
             {
-                <p class="muted small">Пока никого.</p>
+                <p class="muted small">@L["meal.nobody"]</p>
             }
             @foreach (var p in Meal.Participants)
             {
@@ -89,10 +90,10 @@
                         <b>@p.Name</b>
                         @if (Meal.SharedItems.Count > 0)
                         {
-                            <span class="participant__totals">своё @Money.Format(p.Subtotal) + общее @Money.Format(Meal.ShareFor(p.Id))</span>
+                            <span class="participant__totals">@L.F("meal.ownShared", Money.Format(p.Subtotal), Money.Format(Meal.ShareFor(p.Id)))</span>
                         }
-                        <span class="participant__sum" title="Итого с долей общих">@Money.Format(Meal.TotalFor(p))</span>
-                        <button type="button" class="btn btn--icon btn--xs" title="Убрать участника" @onclick="() => RemoveParticipant(p.Id)">✕</button>
+                        <span class="participant__sum" title="@L["meal.totalWithShare"]">@Money.Format(Meal.TotalFor(p))</span>
+                        <button type="button" class="btn btn--icon btn--xs" title="@L["meal.removeParticipant"]" @onclick="() => RemoveParticipant(p.Id)">✕</button>
                     </div>
                     @if (p.Items.Count > 0)
                     {
@@ -105,39 +106,39 @@
                                     <td class="items__num">@Money.Format(it.Price)</td>
                                     <td class="items__num">× @it.Qty</td>
                                     <td class="items__num"><b>@Money.Format((it.Price ?? 0) * it.Qty)</b></td>
-                                    <td class="items__act"><button type="button" class="btn btn--icon btn--xs" title="Удалить позицию" @onclick="() => RemoveItem(it.Id)">✕</button></td>
+                                    <td class="items__act"><button type="button" class="btn btn--icon btn--xs" title="@L["meal.deleteItem"]" @onclick="() => RemoveItem(it.Id)">✕</button></td>
                                 </tr>
                             }
                             </tbody>
                         </table>
                     }
                     <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="() => AddItem(p.Id)" @onsubmit:preventDefault="true">
-                        <SuggestInput @bind-Value="draft.Name" Items="_menuSuggest" OnPick="it => PickMenuItem(draft, it)" MaxLength="100" Placeholder="Позиция" />
-                        <MoneyInput @bind-Value="draft.Price" Placeholder="Цена" />
-                        <input class="input input--qty" type="number" min="1" max="99" @bind="draft.Qty" title="Количество" />
+                        <SuggestInput @bind-Value="draft.Name" Items="_menuSuggest" OnPick="it => PickMenuItem(draft, it)" MaxLength="100" Placeholder="@L["meal.item"]" />
+                        <MoneyInput @bind-Value="draft.Price" Placeholder="@L["ui.price"]" />
+                        <input class="input input--qty" type="number" min="1" max="99" @bind="draft.Qty" title="@L["ui.qty"]" />
                         @if (!IsMenuItem(draft))
                         {
-                            <label class="check small" title="Сохранить позицию и цену в меню ресторана"><input type="checkbox" @bind="draft.SaveToMenu" /> в меню</label>
+                            <label class="check small" title="@L["meal.saveToMenuHint"]"><input type="checkbox" @bind="draft.SaveToMenu" /> @L["meal.toMenu"]</label>
                         }
-                        <button type="submit" class="btn btn--sm" disabled="@_busy">+ Позиция</button>
+                        <button type="submit" class="btn btn--sm" disabled="@_busy">@L["meal.addItem"]</button>
                     </form>
                 </div>
             }
 
             <form class="inline-form inline-form--wrap participant-add" data-arrow-nav @onsubmit="AddParticipant" @onsubmit:preventDefault="true">
-                <SuggestInput @bind-Value="_newName" Items="_peopleSuggest" MaxLength="60" Placeholder="Имя участника" />
+                <SuggestInput @bind-Value="_newName" Items="_peopleSuggest" MaxLength="60" Placeholder="@L["meal.participantName"]" />
                 @if (!IsKnownPerson)
                 {
-                    <label class="check small"><input type="checkbox" @bind="_saveToList" /> сохранить в список</label>
+                    <label class="check small"><input type="checkbox" @bind="_saveToList" /> @L["meal.saveToList"]</label>
                 }
-                <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">+ Участник</button>
+                <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">@L["meal.addParticipant"]</button>
             </form>
         </div>
     </div>
 
     <div class="shared">
         <div class="shared__head">
-            <span class="field__label" style="margin:0">Общие позиции и сборы</span>
+            <span class="field__label" style="margin:0">@L["meal.shared"]</span>
             <span class="shared__sum">@Money.Format(Meal.SharedTotal)</span>
         </div>
         @if (Meal.SharedItems.Count > 0)
@@ -153,39 +154,45 @@
                         </td>
                         <td class="items__num">@(s.Qty > 1 ? $"{Money.Format(s.Price)} × {s.Qty}" : "")</td>
                         <td class="items__num"><b>@Money.Format(s.Amount)</b></td>
-                        <td class="items__act"><button type="button" class="btn btn--icon btn--xs" title="Удалить" @onclick="() => RemoveShared(s.Id)">✕</button></td>
+                        <td class="items__act"><button type="button" class="btn btn--icon btn--xs" title="@L["ui.delete"]" @onclick="() => RemoveShared(s.Id)">✕</button></td>
                     </tr>
                 }
                 </tbody>
             </table>
         }
         <div class="quick">
-            @foreach (var (kind, title) in MealService.SharedKinds)
+            <span class="seg" role="group" aria-label="@L["meal.mode"]">
+                @foreach (var mode in MealService.Modes)
+                {
+                    <button type="button" class="seg__btn @(Meal.Mode == mode ? "seg__btn--on" : "")" disabled="@_busy" @onclick="() => SetMode(mode)">@L[mode == "dinein" ? "meal.modeDineIn" : "meal.modeDelivery"]</button>
+                }
+            </span>
+            @foreach (var kind in MealService.KindsFor(Meal.Mode))
             {
-                <button type="button" class="btn btn--sm @(_shared.Kind == kind ? "btn--primary" : "")" @onclick="() => PickKind(kind, title)">@title</button>
+                <button type="button" class="btn btn--sm @(_shared.Kind == kind ? "btn--primary" : "")" @onclick="() => PickKind(kind)">@Meals.SharedKindTitle(kind)</button>
             }
         </div>
         <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="AddShared" @onsubmit:preventDefault="true" style="margin-top:8px">
             @if (_shared.Kind == "item")
             {
-                <SuggestInput @bind-Value="_shared.Name" Items="_menuSuggest" OnPick="PickSharedMenuItem" MaxLength="100" Placeholder="Соус, упаковка, пакет…" />
-                <MoneyInput @bind-Value="_shared.Price" Placeholder="Цена" />
-                <input class="input input--qty" type="number" min="1" max="99" @bind="_shared.Qty" title="Количество" />
+                <SuggestInput @bind-Value="_shared.Name" Items="_menuSuggest" OnPick="PickSharedMenuItem" MaxLength="100" Placeholder="@L["meal.sharedPlaceholder"]" />
+                <MoneyInput @bind-Value="_shared.Price" Placeholder="@L["ui.price"]" />
+                <input class="input input--qty" type="number" min="1" max="99" @bind="_shared.Qty" title="@L["ui.qty"]" />
                 @if (FindMenuItem(_shared.Name) is null)
                 {
-                    <label class="check small" title="Сохранить позицию и цену в меню ресторана"><input type="checkbox" @bind="_shared.SaveToMenu" /> в меню</label>
+                    <label class="check small" title="@L["meal.saveToMenuHint"]"><input type="checkbox" @bind="_shared.SaveToMenu" /> @L["meal.toMenu"]</label>
                 }
             }
             else
             {
                 <input class="input input--grow" @bind="_shared.Name" maxlength="100" placeholder="@KindTitle(_shared.Kind)" />
-                <MoneyInput @bind-Value="_shared.Price" Placeholder="Сумма" />
+                <MoneyInput @bind-Value="_shared.Price" Placeholder="@L["ui.amount"]" />
             }
-            <button type="submit" class="btn btn--sm" disabled="@_busy">+ Добавить</button>
+            <button type="submit" class="btn btn--sm" disabled="@_busy">@L["ui.addPlus"]</button>
         </form>
         <div class="split-pick">
-            <label class="check small"><input type="radio" name="split-@Meal.Id" checked="@_shared.SplitAll" @onchange="() => _shared.SplitAll = true" /> на всех</label>
-            <label class="check small"><input type="radio" name="split-@Meal.Id" checked="@(!_shared.SplitAll)" @onchange="() => _shared.SplitAll = false" /> на выбранных:</label>
+            <label class="check small"><input type="radio" name="split-@Meal.Id" checked="@_shared.SplitAll" @onchange="() => _shared.SplitAll = true" /> @L["meal.splitAll"]</label>
+            <label class="check small"><input type="radio" name="split-@Meal.Id" checked="@(!_shared.SplitAll)" @onchange="() => _shared.SplitAll = false" /> @L["meal.splitSome"]</label>
             @if (!_shared.SplitAll)
             {
                 @foreach (var p in Meal.Participants)
@@ -281,7 +288,7 @@
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
         finally
         {
@@ -337,29 +344,36 @@
 
     private SharedDraft _shared = new();
 
-    private static string KindTitle(string kind) =>
-        MealService.SharedKinds.FirstOrDefault(k => k.Kind == kind).Title ?? kind;
+    private string KindTitle(string kind) => Meals.SharedKindTitle(kind);
+
 
     private string SplitText(SharedItem s)
     {
-        if (s.SplitAll) return Meal.Participants.Count > 0 ? $"на всех ({Meal.Participants.Count})" : "на всех";
+        if (s.SplitAll) return Meal.Participants.Count > 0 ? L.F("meal.splitAllN", Meal.Participants.Count) : L["meal.splitAll"];
         var names = Meal.Participants.Where(p => s.ParticipantIds.Contains(p.Id)).Select(p => p.Name).ToList();
-        return names.Count == 0 ? "ни на кого (участники удалены)" : "на: " + string.Join(", ", names);
+        return names.Count == 0 ? L["meal.splitNone"] : L.F("meal.splitFor", string.Join(", ", names));
     }
 
-    private void PickKind(string kind, string title)
+    private void PickKind(string kind)
     {
         _shared.Kind = kind;
         if (kind != "item")
         {
-            _shared.Name = title;
+            _shared.Name = KindTitle(kind);
             _shared.Qty = 1;
         }
-        else if (_shared.Name == "Доставка" || _shared.Name == "Работа сервиса")
+        else if (MealService.SharedKinds.Any(k => k != "item" && _shared.Name == KindTitle(k)))
         {
             _shared.Name = "";
         }
     }
+
+    /// <summary>Смена формата (доставка / на месте) меняет набор сборов; уже добавленные позиции остаются.</summary>
+    private Task SetMode(string mode) => Run(async () =>
+    {
+        await Meals.SetModeAsync(Meal.Id, mode);
+        if (!MealService.KindsFor(mode).Contains(_shared.Kind)) PickKind("item");
+    });
 
     private void ToggleSharedParticipant(long id, bool on)
     {

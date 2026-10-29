@@ -52,14 +52,14 @@ public sealed class VoteService
         var name = PeopleService.NormalizeName(rawName);
         var date = forDate ?? CalendarService.Today;
         if (date < CalendarService.Today)
-            throw new ValidationException("Голосовать в прошлое нельзя.");
+            throw new ValidationException("err.votePast");
         if (CalendarService.IsWeekend(date))
-            throw new ValidationException("На выходной голосование не нужно.");
+            throw new ValidationException("err.voteWeekend");
         if (restaurantIds.Distinct().Count() < 2)
-            throw new ValidationException("Выберите хотя бы два ресторана.");
+            throw new ValidationException("err.voteTwo");
         var existing = await _votes.GetLatestAsync(date);
         if (existing is { IsOpen: true })
-            throw new ValidationException("Голосование на эту дату уже идёт, присоединяйтесь.");
+            throw new ValidationException("err.voteExists");
         foreach (var id in restaurantIds.Distinct())
             await EnsureActiveAsync(id);
 
@@ -77,7 +77,7 @@ public sealed class VoteService
         var vote = await GetOpenAsync(voteId);
         await EnsureActiveAsync(restaurantId);
         if (vote.Options.Any(o => o.RestaurantId == restaurantId))
-            throw new ValidationException("Этот ресторан уже есть в списке.");
+            throw new ValidationException("err.voteOptionExists");
         await _votes.AddOptionAsync(voteId, restaurantId, name);
         await _votes.AddParticipantAsync(voteId, name);
         await _notifier.NotifyAsync();
@@ -90,7 +90,7 @@ public sealed class VoteService
         var vote = await GetOpenAsync(voteId);
         var chosen = optionIds.Distinct().Where(id => vote.Options.Any(o => o.Id == id)).ToList();
         if (chosen.Count == 0)
-            throw new ValidationException("Отметьте хотя бы один вариант.");
+            throw new ValidationException("err.voteOneOption");
         var pid = await _votes.AddParticipantAsync(voteId, name);
         await _votes.SetBallotsAsync(pid, chosen);
         await _notifier.NotifyAsync();
@@ -102,9 +102,9 @@ public sealed class VoteService
         var name = PeopleService.NormalizeName(rawName);
         var vote = await GetOpenAsync(voteId);
         var me = vote.Participants.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
-            ?? throw new ValidationException("Сначала проголосуйте.");
+            ?? throw new ValidationException("err.voteFirst");
         if (!me.HasVoted)
-            throw new ValidationException("Сначала нажмите «Голосовать».");
+            throw new ValidationException("err.votePress");
         await _votes.SetFinishedAsync(me.Id, true);
         await TryCompleteAsync(voteId);
         await _notifier.NotifyAsync();
@@ -141,14 +141,14 @@ public sealed class VoteService
 
     private async Task<Vote> GetOpenAsync(long voteId)
     {
-        var vote = await _votes.GetByIdAsync(voteId) ?? throw new ValidationException("Голосование не найдено.");
-        if (!vote.IsOpen) throw new ValidationException("Голосование уже завершено.");
+        var vote = await _votes.GetByIdAsync(voteId) ?? throw new ValidationException("err.voteNotFound");
+        if (!vote.IsOpen) throw new ValidationException("err.voteClosed");
         return vote;
     }
 
     private async Task EnsureActiveAsync(long restaurantId)
     {
-        var r = await _restaurants.GetByIdAsync(restaurantId) ?? throw new ValidationException("Ресторан не найден.");
-        if (!r.IsActive) throw new ValidationException($"Ресторан «{r.Name}» деактивирован.");
+        var r = await _restaurants.GetByIdAsync(restaurantId) ?? throw new ValidationException("err.restaurantNotFound");
+        if (!r.IsActive) throw new ValidationException("err.voteRestaurantInactive", r.Name);
     }
 }

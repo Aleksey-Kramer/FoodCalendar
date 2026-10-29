@@ -27,6 +27,7 @@ builder.Services.AddScoped<MealRepository>();
 builder.Services.AddScoped<PeopleRepository>();
 builder.Services.AddScoped<VoteRepository>();
 
+builder.Services.AddScoped<I18n>();
 builder.Services.AddScoped<RestaurantService>();
 builder.Services.AddScoped<CalendarService>();
 builder.Services.AddScoped<MealService>();

@@ -33,13 +33,13 @@ public sealed class RestaurantService
         }
         catch (SqliteException ex) when (ex.SqliteErrorCode == 19) // constraint violation
         {
-            throw new ValidationException("Ресторан с таким названием уже есть.");
+            throw new ValidationException("err.restaurantExists");
         }
     }
 
     public async Task UpdateAsync(long id, string name, string? imageFile)
     {
-        _ = await _repo.GetByIdAsync(id) ?? throw new ValidationException("Ресторан не найден.");
+        _ = await _repo.GetByIdAsync(id) ?? throw new ValidationException("err.restaurantNotFound");
         name = await ValidateNameAsync(name, excludeId: id);
         try
         {
@@ -47,7 +47,7 @@ public sealed class RestaurantService
         }
         catch (SqliteException ex) when (ex.SqliteErrorCode == 19)
         {
-            throw new ValidationException("Ресторан с таким названием уже есть.");
+            throw new ValidationException("err.restaurantExists");
         }
     }
 
@@ -66,22 +66,22 @@ public sealed class RestaurantService
     public async Task<long> SaveItemAsync(long restaurantId, string rawName, decimal? price)
     {
         var name = MealService.NormalizeItemName(rawName);
-        if (price is < 0) throw new ValidationException("Цена не может быть отрицательной.");
-        _ = await _repo.GetByIdAsync(restaurantId) ?? throw new ValidationException("Ресторан не найден.");
+        if (price is < 0) throw new ValidationException("err.priceNegative");
+        _ = await _repo.GetByIdAsync(restaurantId) ?? throw new ValidationException("err.restaurantNotFound");
         return await _items.UpsertAsync(restaurantId, name, price);
     }
 
     public async Task UpdateItemAsync(long itemId, string rawName, decimal? price)
     {
         var name = MealService.NormalizeItemName(rawName);
-        if (price is < 0) throw new ValidationException("Цена не может быть отрицательной.");
+        if (price is < 0) throw new ValidationException("err.priceNegative");
         try
         {
             await _items.UpdateAsync(itemId, name, price);
         }
         catch (SqliteException ex) when (ex.SqliteErrorCode == 19)
         {
-            throw new ValidationException("Позиция с таким названием уже есть в меню.");
+            throw new ValidationException("err.menuItemExists");
         }
     }
 
@@ -91,14 +91,14 @@ public sealed class RestaurantService
     {
         var name = Regex.Replace((raw ?? "").Trim(), @"\s+", " ");
         if (name.Length == 0)
-            throw new ValidationException("Введите название ресторана.");
+            throw new ValidationException("err.restaurantNameRequired");
         if (name.Length > MaxNameLength)
-            throw new ValidationException($"Название не должно быть длиннее {MaxNameLength} символов.");
+            throw new ValidationException("err.nameTooLong", MaxNameLength);
 
         // Сравниваем в C#: COLLATE NOCASE в SQLite не учитывает регистр кириллицы.
         var all = await _repo.GetAllAsync(includeInactive: true);
         if (all.Any(r => r.Id != excludeId && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)))
-            throw new ValidationException("Ресторан с таким названием уже есть.");
+            throw new ValidationException("err.restaurantExists");
 
         return name;
     }

@@ -113,6 +113,40 @@ public sealed class DbInitializer
             conn.Execute("ALTER TABLE meals ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0 CHECK (is_hidden IN (0, 1))");
             _logger.LogInformation("Миграция: добавлена колонка meals.is_hidden");
         }
+        // meals.mode: доставка (delivery) или еда на месте (dinein) — определяет набор сборов чека
+        var hasMode = conn.Query<string>("SELECT name FROM pragma_table_info('meals')").Contains("mode");
+        if (!hasMode)
+        {
+            conn.Execute("ALTER TABLE meals ADD COLUMN mode TEXT NOT NULL DEFAULT 'delivery' CHECK (mode IN ('delivery', 'dinein'))");
+            _logger.LogInformation("Миграция: добавлена колонка meals.mode");
+        }
+
+        // meal_shared_items.kind: новые типы сборов (обслуживание, чаевые). SQLite не умеет менять CHECK —
+        // таблица пересоздаётся; внешние ключи на время выключены, иначе DROP каскадно удалит привязки участников.
+        var sharedSql = conn.ExecuteScalar<string>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'meal_shared_items'") ?? "";
+        if (sharedSql.Length > 0 && !sharedSql.Contains("'tips'"))
+        {
+            conn.Execute("PRAGMA foreign_keys = OFF");
+            using (var tx = conn.BeginTransaction())
+            {
+                conn.Execute(
+                    "CREATE TABLE meal_shared_items_new (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "meal_id INTEGER NOT NULL REFERENCES meals(id) ON DELETE CASCADE, " +
+                    "name TEXT NOT NULL CHECK (length(trim(name)) > 0), " +
+                    "kind TEXT NOT NULL DEFAULT 'item' CHECK (kind IN ('item', 'delivery', 'service', 'servicecharge', 'tips')), " +
+                    "price REAL NULL, qty INTEGER NOT NULL DEFAULT 1 CHECK (qty > 0), " +
+                    "split_all INTEGER NOT NULL DEFAULT 1 CHECK (split_all IN (0, 1)))", transaction: tx);
+                conn.Execute("INSERT INTO meal_shared_items_new (id, meal_id, name, kind, price, qty, split_all) " +
+                             "SELECT id, meal_id, name, kind, price, qty, split_all FROM meal_shared_items", transaction: tx);
+                conn.Execute("DROP TABLE meal_shared_items", transaction: tx);
+                conn.Execute("ALTER TABLE meal_shared_items_new RENAME TO meal_shared_items", transaction: tx);
+                conn.Execute("CREATE INDEX IF NOT EXISTS ix_meal_shared_items_meal ON meal_shared_items(meal_id)", transaction: tx);
+                tx.Commit();
+            }
+            conn.Execute("PRAGMA foreign_keys = ON");
+            _logger.LogInformation("Миграция: расширены типы сборов в meal_shared_items");
+        }
 
         var hasOld = conn.ExecuteScalar<long>(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'day_assignments'") > 0;

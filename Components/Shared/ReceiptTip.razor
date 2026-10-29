@@ -1,3 +1,4 @@
+@inject I18n L
 @* Содержимое чека одного приёма еды для подсказки в календаре: позиции, люди с их «Итого», общая сумма. *@
 <div class="tip__body">
     @if (Meal.Participants.Any(p => p.Items.Count > 0) || Meal.SharedItems.Count > 0)
@@ -18,7 +19,7 @@
             @foreach (var s in Meal.SharedItems)
             {
                 <tr @key="('s', s.Id)">
-                    <td>@s.Name <span class="muted">· общее</span></td>
+                    <td>@s.Name <span class="muted">@L["tip.shared"]</span></td>
                     <td class="num">@(s.Qty > 1 ? $"× {s.Qty}" : "")</td>
                     <td class="num">@Money.Format(s.Amount)</td>
                 </tr>
@@ -36,12 +37,12 @@
         </div>
     }
     <div class="tip__total">
-        <span>Итого по чеку</span>
+        <span>@L["meal.total"]</span>
         <b>@Money.Format(Meal.ItemsTotal)</b>
     </div>
     @if (Meal.ReceiptFile is not null)
     {
-        <div class="muted small">🧾 чек прикреплён</div>
+        <div class="muted small">@L["tip.attached"]</div>
     }
 </div>
 

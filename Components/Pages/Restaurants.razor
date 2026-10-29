@@ -3,21 +3,22 @@
 @inject RestaurantService RestaurantSvc
 @inject ImageService Images
 @inject IJSRuntime JS
+@inject I18n L
 
-<PageTitle>Рестораны</PageTitle>
+<PageTitle>@L["nav.restaurants"]</PageTitle>
 
 <div class="page-head">
-    <h1>Рестораны</h1>
-    <button type="button" class="btn btn--primary" @onclick="StartCreate">+ Добавить</button>
+    <h1>@L["nav.restaurants"]</h1>
+    <button type="button" class="btn btn--primary" @onclick="StartCreate">@L["ui.addPlus"]</button>
 </div>
 
 @if (_list is null)
 {
-    <p class="muted">Загрузка…</p>
+    <p class="muted">@L["ui.loading"]</p>
 }
 else if (_list.Count == 0)
 {
-    <p class="muted">Ресторанов пока нет.</p>
+    <p class="muted">@L["rest.empty"]</p>
 }
 else
 {
@@ -30,30 +31,30 @@ else
                     @r.Name
                     @if (!r.IsActive)
                     {
-                        <span class="badge">неактивен</span>
+                        <span class="badge">@L["ui.inactive"]</span>
                     }
                 </div>
                 <div class="rlist__actions">
-                    <button type="button" class="btn btn--sm" @onclick="() => OpenMenu(r)">Меню (@(_itemCounts.GetValueOrDefault(r.Id)))</button>
-                    <button type="button" class="btn btn--sm" @onclick="() => StartEdit(r)">Изменить</button>
+                    <button type="button" class="btn btn--sm" @onclick="() => OpenMenu(r)">@L.F("rest.menu", _itemCounts.GetValueOrDefault(r.Id))</button>
+                    <button type="button" class="btn btn--sm" @onclick="() => StartEdit(r)">@L["ui.edit"]</button>
                     @if (r.IsActive)
                     {
                         if (_confirmId == r.Id)
                         {
                             <span class="confirm">
-                                Точно?
-                                <button type="button" class="btn btn--sm btn--danger" @onclick="() => Deactivate(r.Id)">Да</button>
-                                <button type="button" class="btn btn--sm" @onclick="() => _confirmId = null">Нет</button>
+                                @L["ui.sure"]
+                                <button type="button" class="btn btn--sm btn--danger" @onclick="() => Deactivate(r.Id)">@L["ui.yes"]</button>
+                                <button type="button" class="btn btn--sm" @onclick="() => _confirmId = null">@L["ui.no"]</button>
                             </span>
                         }
                         else
                         {
-                            <button type="button" class="btn btn--sm btn--danger" @onclick="() => _confirmId = r.Id">Деактивировать</button>
+                            <button type="button" class="btn btn--sm btn--danger" @onclick="() => _confirmId = r.Id">@L["rest.deactivate"]</button>
                         }
                     }
                     else
                     {
-                        <button type="button" class="btn btn--sm" @onclick="() => Activate(r.Id)">Восстановить</button>
+                        <button type="button" class="btn btn--sm" @onclick="() => Activate(r.Id)">@L["rest.restore"]</button>
                     }
                 </div>
             </li>
@@ -66,10 +67,10 @@ else
     <div class="modal-backdrop" @onclick="CloseMenu">
         <div class="modal modal--narrow" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
             <div class="modal__head">
-                <h2>Меню: @mr.Name</h2>
-                <button type="button" class="btn btn--icon" @onclick="CloseMenu" title="Закрыть" aria-label="Закрыть">✕</button>
+                <h2>@L.F("rest.menuTitle", mr.Name)</h2>
+                <button type="button" class="btn btn--icon" @onclick="CloseMenu" title="@L["ui.close"]" aria-label="@L["ui.close"]">✕</button>
             </div>
-            <p class="muted small">Позиции подставляются как подсказки при вводе на странице дня. Цена необязательна.</p>
+            <p class="muted small">@L["rest.menuHint"]</p>
 
             @if (_menuError is not null)
             {
@@ -77,18 +78,18 @@ else
             }
 
             <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="SaveMenuItem" @onsubmit:preventDefault="true">
-                <input class="input input--grow" @bind="_menuName" maxlength="100" placeholder="Название" />
-                <MoneyInput @bind-Value="_menuPrice" Placeholder="Цена" />
-                <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">@(_menuEditId is null ? "Добавить" : "Сохранить")</button>
+                <input class="input input--grow" @bind="_menuName" maxlength="100" placeholder="@L["ui.name"]" />
+                <MoneyInput @bind-Value="_menuPrice" Placeholder="@L["ui.price"]" />
+                <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">@(_menuEditId is null ? L["ui.add"] : L["ui.save"])</button>
                 @if (_menuEditId is not null)
                 {
-                    <button type="button" class="btn btn--sm" @onclick="ResetMenuForm">Отмена</button>
+                    <button type="button" class="btn btn--sm" @onclick="ResetMenuForm">@L["ui.cancel"]</button>
                 }
             </form>
 
             @if (_menuItems.Count == 0)
             {
-                <p class="muted">Меню пока пустое.</p>
+                <p class="muted">@L["rest.menuEmpty"]</p>
             }
             else
             {
@@ -98,15 +99,15 @@ else
                         <li>
                             <span class="menu-list__name">@it.Name</span>
                             <span class="menu-list__price">@Money.Format(it.Price)</span>
-                            <button type="button" class="btn btn--icon btn--xs" title="Изменить" @onclick="() => EditMenuItem(it)">✎</button>
-                            <button type="button" class="btn btn--icon btn--xs" title="Удалить" @onclick="() => DeleteMenuItem(it.Id)">✕</button>
+                            <button type="button" class="btn btn--icon btn--xs" title="@L["ui.edit"]" @onclick="() => EditMenuItem(it)">✎</button>
+                            <button type="button" class="btn btn--icon btn--xs" title="@L["ui.delete"]" @onclick="() => DeleteMenuItem(it.Id)">✕</button>
                         </li>
                     }
                 </ul>
             }
 
             <div class="modal__foot">
-                <button type="button" class="btn" @onclick="CloseMenu">Закрыть</button>
+                <button type="button" class="btn" @onclick="CloseMenu">@L["ui.close"]</button>
             </div>
         </div>
     </div>
@@ -117,8 +118,8 @@ else
     <div class="modal-backdrop" @onclick="CancelForm">
         <div class="modal modal--narrow" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
             <div class="modal__head">
-                <h2>@(f.Id is null ? "Новый ресторан" : "Редактирование")</h2>
-                <button type="button" class="btn btn--icon" @onclick="CancelForm" title="Закрыть" aria-label="Закрыть">✕</button>
+                <h2>@(f.Id is null ? L["rest.new"] : L["rest.editing"])</h2>
+                <button type="button" class="btn btn--icon" @onclick="CancelForm" title="@L["ui.close"]" aria-label="@L["ui.close"]">✕</button>
             </div>
 
             @if (_error is not null)
@@ -127,16 +128,16 @@ else
             }
 
             <label class="field">
-                <span class="field__label">Название</span>
-                <input class="input" @bind="f.Name" maxlength="100" placeholder="Например, Пицца Неаполь" />
+                <span class="field__label">@L["ui.name"]</span>
+                <input class="input" @bind="f.Name" maxlength="100" placeholder="@L["rest.namePlaceholder"]" />
             </label>
 
             <div class="field">
-                <span class="field__label">Картинка (JPG, PNG, WebP или SVG, до 2 МБ)</span>
+                <span class="field__label">@L["rest.image"]</span>
                 <div class="image-row">
                     @if (_previewUrl is not null)
                     {
-                        <img class="thumb thumb--card" src="@_previewUrl" alt="Предпросмотр" />
+                        <img class="thumb thumb--card" src="@_previewUrl" alt="@L["rest.preview"]" />
                     }
                     else
                     {
@@ -146,30 +147,30 @@ else
                     }
                     <div class="image-row__controls">
                         <div class="dropzone" @ref="_dropZone">
-                            <InputFile OnChange="OnFileSelected" accept="@ImageService.Accept" class="dropzone__input" title="Выбрать файл" />
+                            <InputFile OnChange="OnFileSelected" accept="@ImageService.Accept" class="dropzone__input" title="@L["rest.chooseFile"]" />
                             <div class="dropzone__label">
-                                <span class="dropzone__title">Перетащите картинку сюда</span>
-                                <span class="dropzone__hint">или нажмите, чтобы выбрать файл. Из буфера: <kbd>Ctrl</kbd>+<kbd>V</kbd></span>
+                                <span class="dropzone__title">@L["rest.dropTitle"]</span>
+                                <span class="dropzone__hint">@L["rest.dropHint"] <kbd>Ctrl</kbd>+<kbd>V</kbd></span>
                             </div>
                         </div>
                         @if (_file is not null)
                         {
                             <div class="muted small">
-                                Выбран файл: @_file.Name (@((_file.Size + 1023) / 1024) КБ)
-                                <button type="button" class="btn btn--sm" @onclick="ClearFile">Убрать</button>
+                                @L.F("rest.selectedFile", _file.Name, (_file.Size + 1023) / 1024)
+                                <button type="button" class="btn btn--sm" @onclick="ClearFile">@L["ui.remove"]</button>
                             </div>
                         }
                         @if (f.ImageFile is not null && _file is null)
                         {
-                            <label class="check"><input type="checkbox" @bind="f.RemoveImage" /> Убрать текущую картинку</label>
+                            <label class="check"><input type="checkbox" @bind="f.RemoveImage" /> @L["rest.removeImage"]</label>
                         }
                     </div>
                 </div>
             </div>
 
             <div class="modal__foot">
-                <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Save">Сохранить</button>
-                <button type="button" class="btn" disabled="@_busy" @onclick="CancelForm">Отмена</button>
+                <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Save">@L["ui.save"]</button>
+                <button type="button" class="btn" disabled="@_busy" @onclick="CancelForm">@L["ui.cancel"]</button>
             </div>
         </div>
     </div>
@@ -252,7 +253,7 @@ else
         }
         catch (ValidationException ex)
         {
-            _menuError = ex.Message;
+            _menuError = L.Error(ex);
         }
         finally
         {
@@ -340,7 +341,7 @@ else
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
     }
 
@@ -376,7 +377,7 @@ else
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
         finally
         {

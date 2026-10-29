@@ -1,31 +1,32 @@
 @implements IDisposable
 @inject VoteService Votes
+@inject I18n L
 @inject RestaurantService RestaurantSvc
 @inject ChangeNotifier Notifier
 @inject IJSRuntime JS
 
 <section class="vote">
     <div class="section__head">
-        <h2>Голосование <span class="muted small">на сегодня или на будущий рабочий день</span></h2>
+        <h2>@L["vote.title"] <span class="muted small">@L["vote.subtitle"]</span></h2>
     </div>
 
     @if (_loading)
     {
-        <p class="muted">Загрузка…</p>
+        <p class="muted">@L["ui.loading"]</p>
     }
     else
     {
         <div class="vote__name">
             <label class="field">
-                <span class="field__label">Ваше имя</span>
-                <input class="input" list="people-list-vote" @bind="_name" @bind:after="SaveName" maxlength="60" placeholder="Как вас называть в голосовании" />
+                <span class="field__label">@L["vote.yourName"]</span>
+                <input class="input" list="people-list-vote" @bind="_name" @bind:after="SaveName" maxlength="60" placeholder="@L["vote.namePlaceholder"]" />
             </label>
         </div>
 
         @foreach (var f in _board.Finished.Where(f => _board.Open.All(o => o.Date != f.Date)))
         {
             <p class="vote__result" @key="('f', f.Id)">
-                🏆 @(f.DateValue == CalendarService.Today ? "Сегодня" : CalendarService.FormatLong(f.DateValue)): победил <b>@f.WinnerName</b> (раунд @f.Round), ресторан добавлен в календарь.
+                @L.F("vote.result", f.DateValue == CalendarService.Today ? L["ui.today"] : L.DateLong(f.DateValue), f.WinnerName, f.Round)
             </p>
         }
 
@@ -36,21 +37,21 @@
 
         @if (_board.Open.Count == 0 && _board.Finished.Count == 0)
         {
-            <p class="muted small">Активных голосований нет.</p>
+            <p class="muted small">@L["vote.none"]</p>
         }
 
         @if (!_starting)
         {
-            <button type="button" class="btn btn--primary" @onclick="BeginStart">Начать голосование</button>
+            <button type="button" class="btn btn--primary" @onclick="BeginStart">@L["vote.start"]</button>
         }
         else
         {
             <div class="vote__start">
                 <label class="field vote__date">
-                    <span class="field__label">На какой день</span>
+                    <span class="field__label">@L["vote.whichDay"]</span>
                     <input type="date" class="input" min="@CalendarService.Key(CalendarService.Today)" @bind="_startDate" />
                 </label>
-                <p class="muted small">Только сегодня или будущие рабочие дни. Отметьте минимум два ресторана и нажмите «Начать» — остальные увидят голосование и присоединятся.</p>
+                <p class="muted small">@L["vote.startHint"]</p>
                 @if (_error is not null)
                 {
                     <div class="alert">@_error</div>
@@ -67,8 +68,8 @@
                     }
                 </div>
                 <div class="vote__actions">
-                    <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Start">Начать</button>
-                    <button type="button" class="btn" @onclick="() => { _starting = false; _error = null; }">Отмена</button>
+                    <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Start">@L["vote.begin"]</button>
+                    <button type="button" class="btn" @onclick="() => { _starting = false; _error = null; }">@L["ui.cancel"]</button>
                 </div>
             </div>
         }
@@ -161,7 +162,7 @@
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
         finally
         {

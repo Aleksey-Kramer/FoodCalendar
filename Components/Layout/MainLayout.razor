@@ -1,13 +1,26 @@
 @inherits LayoutComponentBase
+@inject I18n L
 
 <header class="topbar">
     <div class="container topbar__inner">
-        <a class="brand" href="/">🍽 Календарь еды</a>
+        <a class="brand" href="/">🍽 @L["app.title"]</a>
         <nav class="nav">
-            <NavLink class="nav__link" href="/" Match="NavLinkMatch.All">Календарь</NavLink>
-            <NavLink class="nav__link" href="/restaurants">Рестораны</NavLink>
-            <NavLink class="nav__link" href="/people">Люди</NavLink>
+            <NavLink class="nav__link" href="/" Match="NavLinkMatch.All">@L["nav.calendar"]</NavLink>
+            <NavLink class="nav__link" href="/restaurants">@L["nav.restaurants"]</NavLink>
+            <NavLink class="nav__link" href="/people">@L["nav.people"]</NavLink>
         </nav>
+        <div class="prefs">
+            @* Переключатели работают на клиенте: cookie + перезагрузка (язык) или атрибут data-theme (тема) *@
+            <select class="prefs__lang" title="@L["ui.language"]" aria-label="@L["ui.language"]" value="@L.Lang" onchange="prefs.setLang(this.value)">
+                @foreach (var (lang, title) in I18n.LanguageTitles)
+                {
+                    <option value="@lang" selected="@(lang == L.Lang)">@title</option>
+                }
+            </select>
+            <button type="button" class="btn btn--icon prefs__theme" title="@L["ui.theme"]" aria-label="@L["ui.theme"]" onclick="prefs.toggleTheme()">
+                <span class="ico-moon">🌙</span><span class="ico-sun">☀️</span>
+            </button>
+        </div>
     </div>
 </header>
 
@@ -16,7 +29,7 @@
 </main>
 
 <div id="blazor-error-ui">
-    Произошла непредвиденная ошибка.
-    <a href="" class="reload">Перезагрузить</a>
+    @L["ui.error"]
+    <a href="" class="reload">@L["ui.reload"]</a>
     <a class="dismiss">🗙</a>
 </div>

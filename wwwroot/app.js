@@ -66,3 +66,17 @@ document.addEventListener('keydown', e => {
   if (el.dataset.open !== 'true') return;
   if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') e.preventDefault();
 });
+
+// Язык и тема: cookie на год. Язык требует перезагрузки (интерфейс рендерится на сервере),
+// тема переключается сразу через data-theme на <html>.
+window.prefs = {
+  cookie(name, value) { document.cookie = name + '=' + value + ';path=/;max-age=31536000;SameSite=Lax'; },
+  setLang(v) { this.cookie('fc.lang', v); location.reload(); },
+  toggleTheme() {
+    const root = document.documentElement;
+    const current = root.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const next = current === 'dark' ? 'light' : 'dark';
+    root.dataset.theme = next;
+    this.cookie('fc.theme', next);
+  }
+};

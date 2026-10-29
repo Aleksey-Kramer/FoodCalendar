@@ -1,6 +1,15 @@
+@inject I18n L
+
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
         <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
+
+@code {
+    /// <summary>Язык из cookie (App.razor); выставляется и при предрендере, и в интерактивной цепи.</summary>
+    [Parameter] public string? Lang { get; set; }
+
+    protected override void OnParametersSet() => L.Set(Lang);
+}

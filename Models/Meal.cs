@@ -10,6 +10,8 @@ public sealed class Meal
     public bool IsMain { get; set; }
     /// <summary>Ресторан убран из дня: чек сохранён, но не показывается, пока ресторан не выберут снова.</summary>
     public bool IsHidden { get; set; }
+    /// <summary>Формат чека: delivery (доставка: сборы «Доставка», «Работа сервиса») или dinein (еда на месте: «Обслуживание», «Чаевые»).</summary>
+    public string Mode { get; set; } = "delivery";
     /// <summary>Метка дополнительного приёма: «Завтрак», «Перекус», «Кофе» и т.п.</summary>
     public string? Label { get; set; }
     public string? ReceiptFile { get; set; }

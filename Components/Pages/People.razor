@@ -1,16 +1,17 @@
 @page "/people"
 @inject PeopleService PeopleSvc
+@inject I18n L
 
-<PageTitle>Люди</PageTitle>
+<PageTitle>@L["nav.people"]</PageTitle>
 
 <div class="page-head">
-    <h1>Люди</h1>
+    <h1>@L["nav.people"]</h1>
 </div>
-<p class="muted">Список участников для быстрого выбора на странице дня. Удаление из списка не затрагивает прошлые заказы.</p>
+<p class="muted">@L["people.hint"]</p>
 
 <form class="inline-form" @onsubmit="Add" @onsubmit:preventDefault="true">
-    <input class="input" @bind="_name" maxlength="60" placeholder="Имя" />
-    <button type="submit" class="btn btn--primary" disabled="@_busy">Добавить</button>
+    <input class="input" @bind="_name" maxlength="60" placeholder="@L["people.name"]" />
+    <button type="submit" class="btn btn--primary" disabled="@_busy">@L["ui.add"]</button>
 </form>
 @if (_error is not null)
 {
@@ -19,11 +20,11 @@
 
 @if (_list is null)
 {
-    <p class="muted">Загрузка…</p>
+    <p class="muted">@L["ui.loading"]</p>
 }
 else if (_list.Count == 0)
 {
-    <p class="muted">Список пуст.</p>
+    <p class="muted">@L["people.empty"]</p>
 }
 else
 {
@@ -36,14 +37,14 @@ else
                     @if (_confirmId == p.Id)
                     {
                         <span class="confirm">
-                            Точно?
-                            <button type="button" class="btn btn--sm btn--danger" @onclick="() => Delete(p.Id)">Да</button>
-                            <button type="button" class="btn btn--sm" @onclick="() => _confirmId = null">Нет</button>
+                            @L["ui.sure"]
+                            <button type="button" class="btn btn--sm btn--danger" @onclick="() => Delete(p.Id)">@L["ui.yes"]</button>
+                            <button type="button" class="btn btn--sm" @onclick="() => _confirmId = null">@L["ui.no"]</button>
                         </span>
                     }
                     else
                     {
-                        <button type="button" class="btn btn--sm btn--danger" @onclick="() => _confirmId = p.Id">Удалить</button>
+                        <button type="button" class="btn btn--sm btn--danger" @onclick="() => _confirmId = p.Id">@L["ui.delete"]</button>
                     }
                 </div>
             </li>
@@ -74,7 +75,7 @@ else
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
         finally
         {

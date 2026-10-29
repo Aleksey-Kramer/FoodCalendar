@@ -1,10 +1,11 @@
 @page "/Error"
 @using System.Diagnostics
+@inject I18n L
 
-<PageTitle>Ошибка</PageTitle>
+<PageTitle>@L["error.title"]</PageTitle>
 
-<h1>Ошибка</h1>
-<p>При обработке запроса произошла ошибка. Попробуйте обновить страницу.</p>
+<h1>@L["error.title"]</h1>
+<p>@L["error.text"]</p>
 
 @if (ShowRequestId)
 {

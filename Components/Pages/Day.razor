@@ -3,31 +3,32 @@
 @inject RestaurantService RestaurantSvc
 @inject PeopleService PeopleSvc
 @inject NavigationManager Nav
+@inject I18n L
 
-<PageTitle>@(_date is { } d0 ? CalendarService.FormatLong(d0) : "День")</PageTitle>
+<PageTitle>@(_date is { } d0 ? L.DateLong(d0) : L["day.title"])</PageTitle>
 
 @if (_date is not { } date)
 {
-    <div class="alert">Неверная дата. <a href="/">К календарю</a></div>
+    <div class="alert">@L["day.badDate"] <a href="/">@L["day.toCalendar"]</a></div>
 }
 else
 {
     <div class="day-head">
-        <a class="btn" href="/">← Календарь</a>
+        <a class="btn" href="/">@L["day.back"]</a>
         <div class="cal-nav">
-            <button type="button" class="btn btn--icon" @onclick="() => Shift(-1)" title="Предыдущий день">‹</button>
-            <h1 class="day-title">@CalendarService.FormatFull(date)</h1>
-            <button type="button" class="btn btn--icon" @onclick="() => Shift(1)" title="Следующий день">›</button>
+            <button type="button" class="btn btn--icon" @onclick="() => Shift(-1)" title="@L["day.prev"]">‹</button>
+            <h1 class="day-title">@L.DateFull(date)</h1>
+            <button type="button" class="btn btn--icon" @onclick="() => Shift(1)" title="@L["day.next"]">›</button>
         </div>
     </div>
 
     @if (CalendarService.IsWeekend(date))
     {
-        <p class="alert">Выходной: на этот день еду не заказываем.</p>
+        <p class="alert">@L["day.weekend"]</p>
     }
     else if (_day is null)
     {
-        <p class="muted">Загрузка…</p>
+        <p class="muted">@L["ui.loading"]</p>
     }
     else
     {
@@ -38,7 +39,7 @@ else
 
         <section class="section">
             <div class="section__head">
-                <h2>Основное блюдо</h2>
+                <h2>@L["day.mainDish"]</h2>
             </div>
             @if (_day.Main is { } main)
             {
@@ -47,35 +48,35 @@ else
             }
             else
             {
-                <button type="button" class="btn btn--primary" @onclick="() => OpenPicker(null)">Выбрать ресторан</button>
+                <button type="button" class="btn btn--primary" @onclick="() => OpenPicker(null)">@L["day.pickRestaurant"]</button>
             }
         </section>
 
         <section class="section">
             <div class="section__head">
-                <h2>Дополнительно <span class="muted small">завтрак, перекус, кофе…</span></h2>
-                <button type="button" class="btn btn--sm" @onclick="() => _addExtra = !_addExtra">+ Добавить</button>
+                <h2>@L["day.extras"] <span class="muted small">@L["day.extrasHint"]</span></h2>
+                <button type="button" class="btn btn--sm" @onclick="() => _addExtra = !_addExtra">@L["ui.addPlus"]</button>
             </div>
 
             @if (_addExtra)
             {
                 <form class="inline-form inline-form--wrap" @onsubmit="AddExtra" @onsubmit:preventDefault="true">
-                    <input class="input input--w" list="label-list" @bind="_extraLabel" maxlength="40" placeholder="Метка: завтрак, перекус…" />
+                    <input class="input input--w" list="label-list" @bind="_extraLabel" maxlength="40" placeholder="@L["day.labelPlaceholder"]" />
                     <datalist id="label-list">
-                        @foreach (var s in MealService.LabelSuggestions) { <option value="@s" /> }
+                        @foreach (var s in Meals.LabelSuggestions) { <option value="@s" /> }
                     </datalist>
                     <select class="input input--w" @bind="_extraRestaurantId">
-                        <option value="">Ресторан…</option>
+                        <option value="">@L["day.restaurantPlaceholder"]</option>
                         @foreach (var r in _active) { <option value="@r.Id">@r.Name</option> }
                     </select>
-                    <button type="submit" class="btn btn--primary" disabled="@_busy">Добавить</button>
-                    <button type="button" class="btn" @onclick="() => _addExtra = false">Отмена</button>
+                    <button type="submit" class="btn btn--primary" disabled="@_busy">@L["ui.add"]</button>
+                    <button type="button" class="btn" @onclick="() => _addExtra = false">@L["ui.cancel"]</button>
                 </form>
             }
 
             @if (_day.Extras.Count == 0 && !_addExtra)
             {
-                <p class="muted">Дополнительных приёмов нет.</p>
+                <p class="muted">@L["day.noExtras"]</p>
             }
             @foreach (var extra in _day.Extras)
             {
@@ -94,8 +95,8 @@ else
         <div class="modal-backdrop" @onclick="ClosePicker">
             <div class="modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
                 <div class="modal__head">
-                    <h2>@(_pickerMeal is null ? "Основное блюдо" : (_pickerMeal.IsMain ? "Сменить ресторан" : $"Сменить ресторан: {_pickerMeal.Label}"))</h2>
-                    <button type="button" class="btn btn--icon" @onclick="ClosePicker" aria-label="Закрыть">✕</button>
+                    <h2>@(_pickerMeal is null ? L["day.mainDish"] : (_pickerMeal.IsMain ? L["day.changeRestaurant"] : L.F("day.changeRestaurantFor", _pickerMeal.Label)))</h2>
+                    <button type="button" class="btn btn--icon" @onclick="ClosePicker" aria-label="@L["ui.close"]">✕</button>
                 </div>
                 @if (_pickerError is not null) { <div class="alert">@_pickerError</div> }
                 <div class="picker">
@@ -109,7 +110,7 @@ else
                     }
                 </div>
                 <div class="modal__foot">
-                    <button type="button" class="btn" @onclick="ClosePicker">Отмена</button>
+                    <button type="button" class="btn" @onclick="ClosePicker">@L["ui.cancel"]</button>
                 </div>
             </div>
         </div>
@@ -170,7 +171,7 @@ else
         try
         {
             if (!long.TryParse(_extraRestaurantId, out var rid))
-                throw new ValidationException("Выберите ресторан.");
+                throw new ValidationException("day.selectRestaurant");
             await Meals.AddExtraAsync(date, rid, _extraLabel);
             _extraLabel = "";
             _extraRestaurantId = "";
@@ -179,7 +180,7 @@ else
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
         finally
         {
@@ -200,7 +201,7 @@ else
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
     }
 
@@ -233,7 +234,7 @@ else
         }
         catch (ValidationException ex)
         {
-            _pickerError = ex.Message;
+            _pickerError = L.Error(ex);
         }
         finally
         {

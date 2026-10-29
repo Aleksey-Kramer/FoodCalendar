@@ -18,9 +18,9 @@ public sealed class PeopleService
     {
         var name = Regex.Replace((raw ?? "").Trim(), @"\s+", " ");
         if (name.Length == 0)
-            throw new ValidationException("Введите имя.");
+            throw new ValidationException("err.personRequired");
         if (name.Length > MaxNameLength)
-            throw new ValidationException($"Имя не должно быть длиннее {MaxNameLength} символов.");
+            throw new ValidationException("err.personTooLong", MaxNameLength);
         return name;
     }
 

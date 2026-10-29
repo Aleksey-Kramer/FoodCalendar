@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS meals (
     restaurant_id INTEGER NOT NULL REFERENCES restaurants(id),
     is_main       INTEGER NOT NULL DEFAULT 0 CHECK (is_main IN (0, 1)),
     is_hidden     INTEGER NOT NULL DEFAULT 0 CHECK (is_hidden IN (0, 1)), -- ресторан убран, чек сохранён и скрыт
+    mode          TEXT    NOT NULL DEFAULT 'delivery' CHECK (mode IN ('delivery', 'dinein')), -- доставка / еда на месте
     label         TEXT    NULL,
     receipt_file  TEXT    NULL,
     total_amount  REAL    NULL,
@@ -102,7 +103,7 @@ CREATE TABLE IF NOT EXISTS meal_shared_items (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     meal_id   INTEGER NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
     name      TEXT    NOT NULL CHECK (length(trim(name)) > 0),
-    kind      TEXT    NOT NULL DEFAULT 'item' CHECK (kind IN ('item', 'delivery', 'service')),
+    kind      TEXT    NOT NULL DEFAULT 'item' CHECK (kind IN ('item', 'delivery', 'service', 'servicecharge', 'tips')),
     price     REAL    NULL,
     qty       INTEGER NOT NULL DEFAULT 1 CHECK (qty > 0),
     split_all INTEGER NOT NULL DEFAULT 1 CHECK (split_all IN (0, 1))

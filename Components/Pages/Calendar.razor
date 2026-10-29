@@ -4,22 +4,23 @@
 @inject RestaurantService RestaurantSvc
 @inject PeopleService PeopleSvc
 @inject ChangeNotifier Notifier
+@inject I18n L
 @implements IDisposable
 
-<PageTitle>Календарь еды</PageTitle>
+<PageTitle>@L["app.title"]</PageTitle>
 
 <div class="cal-toolbar">
     <div class="cal-nav">
-        <button type="button" class="btn btn--icon" @onclick="PrevMonth" title="Предыдущий месяц" aria-label="Предыдущий месяц">‹</button>
-        <h1 class="cal-title">@(_grid?.Title ?? "…")</h1>
-        <button type="button" class="btn btn--icon" @onclick="NextMonth" title="Следующий месяц" aria-label="Следующий месяц">›</button>
+        <button type="button" class="btn btn--icon" @onclick="PrevMonth" title="@L["cal.prevMonth"]" aria-label="@L["cal.prevMonth"]">‹</button>
+        <h1 class="cal-title">@(_grid is null ? "…" : L.MonthTitle(_year, _month))</h1>
+        <button type="button" class="btn btn--icon" @onclick="NextMonth" title="@L["cal.nextMonth"]" aria-label="@L["cal.nextMonth"]">›</button>
     </div>
-    <button type="button" class="btn" @onclick="GoToday">Сегодня</button>
+    <button type="button" class="btn" @onclick="GoToday">@L["ui.today"]</button>
 </div>
 
 @if (_grid is null)
 {
-    <p class="muted">Загрузка…</p>
+    <p class="muted">@L["ui.loading"]</p>
 }
 else
 {
@@ -27,7 +28,7 @@ else
         <div class="cal-weekdays">
             @for (var i = 0; i < 7; i++)
             {
-                <div class="cal-weekday @(i >= 5 ? "cal-weekday--weekend" : "")">@WeekdayHeaders[i]</div>
+                <div class="cal-weekday @(i >= 5 ? "cal-weekday--weekend" : "")">@L.WeekdayHeaders[i]</div>
             }
         </div>
         @for (var w = 0; w < _grid.Weeks.Count; w++)
@@ -42,9 +43,9 @@ else
                     <div class="cal-cellwrap">
                     @if (day.IsWeekend)
                     {
-                        <div class="@cls" aria-disabled="true" title="Выходной">
+                        <div class="@cls" aria-disabled="true" title="@L["cal.dayOff"]">
                             <span class="cal-daynum">@day.Date.Day</span>
-                            <span class="cal-off">выходной</span>
+                            <span class="cal-off">@L["cal.dayOffLower"]</span>
                         </div>
                     }
                     else
@@ -63,8 +64,8 @@ else
                             @if (day.ExtrasCount > 0 || day.HasReceipt)
                             {
                                 <span class="cal-badges">
-                                    @if (day.ExtrasCount > 0) { <span class="cal-badge" title="Дополнительные приёмы">+@day.ExtrasCount</span> }
-                                    @if (day.HasReceipt) { <span class="cal-badge cal-badge--receipt" title="Есть чек">🧾</span> }
+                                    @if (day.ExtrasCount > 0) { <span class="cal-badge" title="@L["cal.extras"]">+@day.ExtrasCount</span> }
+                                    @if (day.HasReceipt) { <span class="cal-badge cal-badge--receipt" title="@L["cal.hasReceipt"]">🧾</span> }
                                 </span>
                             }
                         </button>
@@ -72,13 +73,13 @@ else
                         {
                             <div class="tip @(c >= 4 ? "tip--left" : "") @(weekIndex >= 3 ? "tip--up" : "")">
                                 <div class="tip__card">
-                                    <div class="tip__date">@CalendarService.FormatLong(day.Date)</div>
+                                    <div class="tip__date">@L.DateLong(day.Date)</div>
                                     @if (det.Main is { } mm)
                                     {
                                         <div class="tip__meal tip__main">
                                             <div class="tip__title">
                                                 <b>@mm.RestaurantName</b>
-                                                @if (!mm.HasReceiptData) { <span class="tip__none tip__none--always">Чека нет</span> }
+                                                @if (!mm.HasReceiptData) { <span class="tip__none tip__none--always">@L["cal.noReceipt"]</span> }
                                             </div>
                                             @if (mm.HasReceiptData) { <ReceiptTip Meal="mm" /> }
                                         </div>
@@ -92,7 +93,7 @@ else
                                                     <div class="tip__title">
                                                         <span class="chip">@ex.Label</span>
                                                         <b>@ex.RestaurantName</b>
-                                                        @if (!ex.HasReceiptData) { <span class="tip__none">Чека нет</span> }
+                                                        @if (!ex.HasReceiptData) { <span class="tip__none">@L["cal.noReceipt"]</span> }
                                                     </div>
                                                     @if (ex.HasReceiptData) { <ReceiptTip Meal="ex" /> }
                                                 </div>
@@ -117,17 +118,17 @@ else
     <div class="modal-backdrop" @onclick="CloseDialog">
         <div class="modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
             <div class="modal__head">
-                <h2>@CalendarService.FormatLong(dd.Date)</h2>
-                <button type="button" class="btn btn--icon" @onclick="CloseDialog" title="Закрыть" aria-label="Закрыть">✕</button>
+                <h2>@L.DateLong(dd.Date)</h2>
+                <button type="button" class="btn btn--icon" @onclick="CloseDialog" title="@L["ui.close"]" aria-label="@L["ui.close"]">✕</button>
             </div>
 
             @if (dd.Main is { } cur)
             {
-                <p class="muted">Основное: <b>@cur.RestaurantName</b>@(cur.IsActive ? "" : " (ресторан деактивирован)")</p>
+                <p class="muted">@L["cal.main"] <b>@cur.RestaurantName</b>@(cur.IsActive ? "" : L["cal.deactivated"])</p>
             }
             else
             {
-                <p class="muted">Основное блюдо не выбрано. Выберите ресторан:</p>
+                <p class="muted">@L["cal.pickMain"]</p>
             }
 
             @if (_error is not null)
@@ -137,7 +138,7 @@ else
 
             @if (_active.Count == 0)
             {
-                <p>Нет активных ресторанов. <a href="/restaurants">Добавить ресторан</a></p>
+                <p>@L["cal.noActive"] <a href="/restaurants">@L["cal.addRestaurant"]</a></p>
             }
 
             <div class="picker">
@@ -154,13 +155,13 @@ else
             </div>
 
             <div class="modal__foot modal__foot--split">
-                <a class="btn" href="/day/@CalendarService.Key(dd.Date)">Детали дня: чек, участники, дополнительно →</a>
+                <a class="btn" href="/day/@CalendarService.Key(dd.Date)">@L["cal.details"]</a>
                 <span class="modal__foot-right">
                     @if (dd.Main is not null)
                     {
-                        <button type="button" class="btn btn--danger" disabled="@_busy" @onclick="Clear">Очистить</button>
+                        <button type="button" class="btn btn--danger" disabled="@_busy" @onclick="Clear">@L["cal.clear"]</button>
                     }
-                    <button type="button" class="btn" @onclick="CloseDialog">Отмена</button>
+                    <button type="button" class="btn" @onclick="CloseDialog">@L["ui.cancel"]</button>
                 </span>
             </div>
         </div>
@@ -168,7 +169,7 @@ else
 }
 
 @code {
-    private static readonly string[] WeekdayHeaders = { "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс" };
+
 
     private int _year;
     private int _month;
@@ -260,7 +261,7 @@ else
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
         finally
         {
@@ -281,7 +282,7 @@ else
         }
         catch (ValidationException ex)
         {
-            _error = ex.Message;
+            _error = L.Error(ex);
         }
         finally
         {

@@ -16,7 +16,8 @@ public sealed class DayDetails
 
 public sealed class MealService
 {
-    public static readonly string[] LabelSuggestions = { "Завтрак", "Перекус", "Кофе", "Обед", "Ужин", "Десерт" };
+    /// <summary>Подсказки меток дополнительных приёмов на текущем языке.</summary>
+    public string[] LabelSuggestions => _l["day.labels"].Split('|');
     public const int MaxLabelLength = 40;
     public const int MaxItemLength = 100;
 
@@ -25,10 +26,12 @@ public sealed class MealService
     private readonly RestaurantItemRepository _items;
     private readonly PeopleService _people;
     private readonly ReceiptService _receipts;
+    private readonly I18n _l;
 
     public MealService(MealRepository meals, RestaurantRepository restaurants, RestaurantItemRepository items,
-        PeopleService people, ReceiptService receipts)
+        PeopleService people, ReceiptService receipts, I18n? l = null)
     {
+        _l = l ?? new I18n();
         _meals = meals;
         _restaurants = restaurants;
         _items = items;
@@ -110,13 +113,13 @@ public sealed class MealService
 
     public Task SetTotalAsync(long mealId, decimal? total)
     {
-        if (total is < 0) throw new ValidationException("Сумма не может быть отрицательной.");
+        if (total is < 0) throw new ValidationException("err.amountNegative");
         return _meals.SetTotalAsync(mealId, total);
     }
 
     public async Task AttachReceiptAsync(long mealId, IBrowserFile file)
     {
-        var meal = await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("Приём еды не найден.");
+        var meal = await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("err.mealNotFound");
         var fileName = await _receipts.SaveAsync(file);
         await _meals.SetReceiptAsync(mealId, fileName);
         _receipts.Delete(meal.ReceiptFile);
@@ -136,7 +139,7 @@ public sealed class MealService
     public async Task<long> AddParticipantAsync(long mealId, string rawName, bool saveToList)
     {
         var name = PeopleService.NormalizeName(rawName);
-        var meal = await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("Приём еды не найден.");
+        var meal = await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("err.mealNotFound");
         var person = saveToList ? await _people.GetOrCreateAsync(name) : await _people.FindAsync(name);
         return await _meals.AddParticipantAsync(meal.Id, person?.Id, person?.Name ?? name);
     }
@@ -151,10 +154,10 @@ public sealed class MealService
         var name = NormalizeItemName(rawName);
         ValidatePriceQty(price, qty);
         var participant = await _meals.GetParticipantAsync(participantId)
-            ?? throw new ValidationException("Участник не найден.");
+            ?? throw new ValidationException("err.participantNotFound");
         if (saveToMenu)
         {
-            var meal = await _meals.GetByIdAsync(participant.MealId) ?? throw new ValidationException("Приём еды не найден.");
+            var meal = await _meals.GetByIdAsync(participant.MealId) ?? throw new ValidationException("err.mealNotFound");
             await _items.UpsertAsync(meal.RestaurantId, name, price);
         }
         return await _meals.AddItemAsync(participantId, name, price, qty);
@@ -171,12 +174,22 @@ public sealed class MealService
 
     // ---- общие позиции и сборы ----
 
-    public static readonly (string Kind, string Title)[] SharedKinds =
+    public static readonly string[] Modes = { "delivery", "dinein" };
+    public static readonly string[] SharedKinds = { "item", "delivery", "service", "servicecharge", "tips" };
+
+    /// <summary>Типы общих позиций для формата чека: доставка — «Доставка» и «Работа сервиса», на месте — «Обслуживание» и «Чаевые».</summary>
+    public static string[] KindsFor(string mode) =>
+        mode == "dinein" ? new[] { "item", "servicecharge", "tips" } : new[] { "item", "delivery", "service" };
+
+    public async Task SetModeAsync(long mealId, string mode)
     {
-        ("item", "Общая позиция"),
-        ("delivery", "Доставка"),
-        ("service", "Работа сервиса"),
-    };
+        if (!Modes.Contains(mode)) throw new ValidationException("err.sharedKind");
+        _ = await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("err.mealNotFound");
+        await _meals.SetModeAsync(mealId, mode);
+    }
+
+    /// <summary>Название типа общей позиции на текущем языке.</summary>
+    public string SharedKindTitle(string kind) => _l[$"shared.{kind}"];
 
     /// <summary>Общая позиция или сбор; делится на всех (splitAll) или на выбранных участников.</summary>
     /// <summary>Добавляет общую позицию или сбор. Общая позиция (kind = item) при saveToMenu сохраняется в меню ресторана с ценой за штуку.</summary>
@@ -184,15 +197,15 @@ public sealed class MealService
     {
         var name = NormalizeItemName(rawName);
         ValidatePriceQty(price, qty);
-        if (SharedKinds.All(k => k.Kind != kind))
-            throw new ValidationException("Неизвестный тип общей позиции.");
-        var meal = (await _meals.GetDayAsync(DateOnly.ParseExact((await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("Приём еды не найден.")).Date, "yyyy-MM-dd")))
+        if (!SharedKinds.Contains(kind))
+            throw new ValidationException("err.sharedKind");
+        var meal = (await _meals.GetDayAsync(DateOnly.ParseExact((await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("err.mealNotFound")).Date, "yyyy-MM-dd")))
             .First(m => m.Id == mealId);
         if (!splitAll)
         {
             var valid = participantIds.Distinct().Where(id => meal.Participants.Any(p => p.Id == id)).ToList();
             if (valid.Count == 0)
-                throw new ValidationException("Выберите хотя бы одного участника или делите на всех.");
+                throw new ValidationException("err.pickParticipants");
             participantIds = valid;
         }
         if (saveToMenu && kind == "item")
@@ -207,24 +220,24 @@ public sealed class MealService
     private static void EnsureWorkday(DateOnly date)
     {
         if (CalendarService.IsWeekend(date))
-            throw new ValidationException("На выходные еду не заказываем: назначение возможно только на будние дни.");
+            throw new ValidationException("err.weekend");
     }
 
     private async Task EnsureActiveRestaurantAsync(long restaurantId)
     {
         var restaurant = await _restaurants.GetByIdAsync(restaurantId)
-            ?? throw new ValidationException("Ресторан не найден.");
+            ?? throw new ValidationException("err.restaurantNotFound");
         if (!restaurant.IsActive)
-            throw new ValidationException("Этот ресторан деактивирован, выберите другой.");
+            throw new ValidationException("err.restaurantInactive");
     }
 
     private static string? NormalizeLabel(string? raw)
     {
         var label = Regex.Replace((raw ?? "").Trim(), @"\s+", " ");
         if (label.Length == 0)
-            throw new ValidationException("Укажите метку: завтрак, перекус, кофе и т.п.");
+            throw new ValidationException("err.labelRequired");
         if (label.Length > MaxLabelLength)
-            throw new ValidationException($"Метка не должна быть длиннее {MaxLabelLength} символов.");
+            throw new ValidationException("err.labelTooLong", MaxLabelLength);
         return label;
     }
 
@@ -232,17 +245,17 @@ public sealed class MealService
     {
         var name = Regex.Replace((raw ?? "").Trim(), @"\s+", " ");
         if (name.Length == 0)
-            throw new ValidationException("Введите название позиции.");
+            throw new ValidationException("err.itemRequired");
         if (name.Length > MaxItemLength)
-            throw new ValidationException($"Название не должно быть длиннее {MaxItemLength} символов.");
+            throw new ValidationException("err.nameTooLong", MaxItemLength);
         return name;
     }
 
     public static void ValidatePriceQty(decimal? price, int qty)
     {
         if (price is < 0)
-            throw new ValidationException("Цена не может быть отрицательной.");
+            throw new ValidationException("err.priceNegative");
         if (qty < 1 || qty > 99)
-            throw new ValidationException("Количество от 1 до 99.");
+            throw new ValidationException("err.qtyRange");
     }
 }
