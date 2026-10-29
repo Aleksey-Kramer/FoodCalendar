@@ -140,6 +140,7 @@ h1:focus, h1:focus-visible { outline: none; } /* FocusOnNavigate перевод�
 .topbar__inner { display: flex; align-items: center; justify-content: space-between; height: 60px; gap: 12px; min-width: 0; }
 .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 750; font-size: 1.05rem; letter-spacing: -.01em; color: var(--text); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .brand:hover { text-decoration: none; color: var(--primary-text); }
+.brand__icon { width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; }
 .nav { display: flex; gap: 2px; background: var(--surface-2); padding: 4px; border-radius: 999px; flex-shrink: 0; border: 1px solid var(--border); }
 .nav__link { padding: 7px 14px; border-radius: 999px; color: var(--muted); font-weight: 600; font-size: .9rem; line-height: 1.2; transition: background .15s, color .15s; white-space: nowrap; }
 .nav__link:hover { color: var(--text); text-decoration: none; }
