@@ -38,11 +38,15 @@ public sealed class MealRepository
     }
 
     /// <summary>Все приёмы за день с участниками и позициями.</summary>
-    public async Task<List<Meal>> GetDayAsync(DateOnly date)
+    public Task<List<Meal>> GetDayAsync(DateOnly date) => GetRangeAsync(date, date);
+
+    /// <summary>Все приёмы за период [from, to] с участниками, позициями и общими сборами (для подсказок в календаре).</summary>
+    public async Task<List<Meal>> GetRangeAsync(DateOnly from, DateOnly to)
     {
         using var conn = _factory.Open();
         var meals = (await conn.QueryAsync<Meal>(
-            SelectSql + "WHERE m.date = @date ORDER BY m.is_main DESC, m.id", new { date = Key(date) })).ToList();
+            SelectSql + "WHERE m.date BETWEEN @from AND @to ORDER BY m.date, m.is_main DESC, m.id",
+            new { from = Key(from), to = Key(to) })).ToList();
         if (meals.Count == 0) return meals;
 
         var mealIds = meals.Select(m => m.Id).ToArray();

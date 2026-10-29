@@ -14,6 +14,7 @@ public sealed class Vote
     public string CreatedAt { get; set; } = "";
     public string? FinishedAt { get; set; }
 
+    public DateOnly DateValue => DateOnly.ParseExact(Date, "yyyy-MM-dd");
     public bool IsOpen => Status == "open";
     public bool IsFinished => Status == "finished";
 

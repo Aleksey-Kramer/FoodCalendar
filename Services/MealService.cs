@@ -47,6 +47,20 @@ public sealed class MealService
         };
     }
 
+    /// <summary>Детали всех дней периода (для подсказок с чеком в календаре), ключ — дата.</summary>
+    public async Task<Dictionary<DateOnly, DayDetails>> GetRangeDetailsAsync(DateOnly from, DateOnly to)
+    {
+        var meals = await _meals.GetRangeAsync(from, to);
+        return meals
+            .GroupBy(m => DateOnly.ParseExact(m.Date, "yyyy-MM-dd"))
+            .ToDictionary(g => g.Key, g => new DayDetails
+            {
+                Date = g.Key,
+                Main = g.FirstOrDefault(m => m.IsMain),
+                Extras = g.Where(m => !m.IsMain).ToList()
+            });
+    }
+
     /// <summary>Назначает основное блюдо дня (создаёт или меняет ресторан).</summary>
     public async Task AssignMainAsync(DateOnly date, long restaurantId)
     {

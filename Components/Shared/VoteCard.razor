@@ -1,0 +1,147 @@
+@inject VoteService Votes
+
+@* Одно открытое голосование: варианты, свой выбор, завершение, добавление ресторана, отмена. *@
+<div class="vote__card">
+    <div class="vote__card-head">
+        <h3 class="vote__card-title">
+            @(Vote.DateValue == CalendarService.Today ? "Сегодня" : "На " + CalendarService.FormatLong(Vote.DateValue))
+            <span class="muted small">· раунд @Vote.Round · начал(а) @Vote.CreatedBy · завершили @Vote.FinishedCount из @Vote.Participants.Count</span>
+        </h3>
+        <span class="vote__count">Проголосовало @Vote.VotedCount @Plural(Vote.VotedCount, "человек", "человека", "человек")</span>
+    </div>
+
+    @if (Vote.TieNames is not null)
+    {
+        <p class="small"><b>Ничья между: @Vote.TieNames. Переголосуйте.</b></p>
+    }
+    @if (_error is not null)
+    {
+        <div class="alert">@_error</div>
+    }
+
+    <div class="vote__options">
+        @foreach (var o in Vote.Options)
+        {
+            var checkedNow = _selected.Contains(o.Id);
+            <label class="vote__option @(checkedNow ? "vote__option--on" : "")" @key="o.Id">
+                <input type="checkbox" checked="@checkedNow" @onchange="e => Toggle(o.Id, e.Value is true)" />
+                <RestaurantThumb Name="@o.RestaurantName" ImageFile="@o.ImageFile" CssClass="thumb--cell" />
+                <span class="vote__option-name">@o.RestaurantName</span>
+                <span class="vote__option-votes" title="Голосов">@o.Votes</span>
+            </label>
+        }
+    </div>
+
+    <div class="vote__actions">
+        <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Cast">Голосовать</button>
+        <button type="button" class="btn" disabled="@(_busy || Me is not { HasVoted: true } || Me.IsFinished)" @onclick="Finish">
+            @(Me is { IsFinished: true } ? "Вы завершили, ждём остальных" : "Завершить голосование")
+        </button>
+        <span class="vote__add">
+            <select class="input" @bind="_addRestaurantId">
+                <option value="">Добавить ресторан…</option>
+                @foreach (var r in Active.Where(r => Vote.Options.All(o => o.RestaurantId != r.Id)))
+                {
+                    <option value="@r.Id">@r.Name</option>
+                }
+            </select>
+            <button type="button" class="btn btn--sm" disabled="@(_busy || _addRestaurantId == "")" @onclick="AddOption">Добавить</button>
+        </span>
+        @if (_confirmCancel)
+        {
+            <span class="confirm">
+                Отменить голосование для всех?
+                <button type="button" class="btn btn--sm btn--danger" @onclick="Cancel">Да</button>
+                <button type="button" class="btn btn--sm" @onclick="() => _confirmCancel = false">Нет</button>
+            </span>
+        }
+        else
+        {
+            <button type="button" class="btn btn--sm btn--danger vote__cancel" @onclick="() => _confirmCancel = true">Отменить</button>
+        }
+    </div>
+
+    <ul class="vote__people">
+        @foreach (var p in Vote.Participants)
+        {
+            <li @key="p.Id" title="@(p.IsFinished ? "Завершил(а)" : p.HasVoted ? "Проголосовал(а), ещё не завершил(а)" : "Ещё не голосовал(а)")">
+                <span>@(p.IsFinished ? "🏁" : p.HasVoted ? "✅" : "⏳")</span> @p.Name
+            </li>
+        }
+    </ul>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Vote Vote { get; set; } = default!;
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public List<Restaurant> Active { get; set; } = new();
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private readonly HashSet<long> _selected = new();
+    private string _addRestaurantId = "";
+    private bool _confirmCancel;
+    private bool _busy;
+    private string? _error;
+    private int _lastRound;
+
+    private VoteParticipant? Me =>
+        Vote.Participants.FirstOrDefault(p => string.Equals(p.Name, Name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnParametersSet()
+    {
+        // новый раунд сбрасывает локальный выбор, иначе подтягиваем свой сохранённый голос
+        if (Vote.Round != _lastRound)
+        {
+            _selected.Clear();
+            _lastRound = Vote.Round;
+        }
+        if (Me is { HasVoted: true } me && _selected.Count == 0)
+            foreach (var id in me.OptionIds) _selected.Add(id);
+    }
+
+    private void Toggle(long optionId, bool on) { if (on) _selected.Add(optionId); else _selected.Remove(optionId); }
+
+    private async Task Run(Func<Task> action)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await action();
+            await OnChanged.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task Cast() => Run(() => Votes.CastAsync(Vote.Id, Name, _selected.ToList()));
+
+    private Task Finish() => Run(() => Votes.FinishAsync(Vote.Id, Name));
+
+    private Task AddOption() => Run(async () =>
+    {
+        if (!long.TryParse(_addRestaurantId, out var rid)) throw new ValidationException("Выберите ресторан.");
+        await Votes.AddOptionAsync(Vote.Id, Name, rid);
+        _addRestaurantId = "";
+    });
+
+    private Task Cancel() => Run(async () =>
+    {
+        await Votes.CancelAsync(Vote.Id);
+        _confirmCancel = false;
+    });
+
+    internal static string Plural(int n, string one, string few, string many)
+    {
+        var m10 = n % 10; var m100 = n % 100;
+        if (m10 == 1 && m100 != 11) return one;
+        if (m10 is >= 2 and <= 4 && m100 is < 12 or > 14) return few;
+        return many;
+    }
+}

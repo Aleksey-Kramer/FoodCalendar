@@ -30,13 +30,17 @@ else
                 <div class="cal-weekday @(i >= 5 ? "cal-weekday--weekend" : "")">@WeekdayHeaders[i]</div>
             }
         </div>
-        @foreach (var week in _grid.Weeks)
+        @for (var w = 0; w < _grid.Weeks.Count; w++)
         {
+            var week = _grid.Weeks[w];
+            var weekIndex = w;
             <div class="cal-week">
-                @foreach (var day in week)
+                @for (var c = 0; c < 7; c++)
                 {
+                    var day = week[c];
                     var cls = CellClass(day);
-                    if (day.IsWeekend)
+                    <div class="cal-cellwrap">
+                    @if (day.IsWeekend)
                     {
                         <div class="@cls" aria-disabled="true" title="Выходной">
                             <span class="cal-daynum">@day.Date.Day</span>
@@ -64,7 +68,42 @@ else
                                 </span>
                             }
                         </button>
+                        @if (_details.TryGetValue(day.Date, out var det) && det.All.Any(x => x.HasReceiptData))
+                        {
+                            <div class="tip @(c >= 4 ? "tip--left" : "") @(weekIndex >= 3 ? "tip--up" : "")">
+                                <div class="tip__card">
+                                    <div class="tip__date">@CalendarService.FormatLong(day.Date)</div>
+                                    @if (det.Main is { } mm)
+                                    {
+                                        <div class="tip__meal tip__main">
+                                            <div class="tip__title">
+                                                <b>@mm.RestaurantName</b>
+                                                @if (!mm.HasReceiptData) { <span class="tip__none tip__none--always">Чека нет</span> }
+                                            </div>
+                                            @if (mm.HasReceiptData) { <ReceiptTip Meal="mm" /> }
+                                        </div>
+                                    }
+                                    @if (det.Extras.Count > 0)
+                                    {
+                                        <div class="tip__extras">
+                                            @foreach (var ex in det.Extras)
+                                            {
+                                                <div class="tip__extra @(ex.HasReceiptData ? "tip__extra--has" : "tip__extra--none")" @key="ex.Id">
+                                                    <div class="tip__title">
+                                                        <span class="chip">@ex.Label</span>
+                                                        <b>@ex.RestaurantName</b>
+                                                        @if (!ex.HasReceiptData) { <span class="tip__none">Чека нет</span> }
+                                                    </div>
+                                                    @if (ex.HasReceiptData) { <ReceiptTip Meal="ex" /> }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
                     }
+                    </div>
                 }
             </div>
         }
@@ -150,7 +189,14 @@ else
         await LoadAsync();
     }
 
-    private async Task LoadAsync() => _grid = await CalendarSvc.BuildMonthAsync(_year, _month);
+    private Dictionary<DateOnly, DayDetails> _details = new();
+
+    private async Task LoadAsync()
+    {
+        _grid = await CalendarSvc.BuildMonthAsync(_year, _month);
+        // Детали чеков всех дней сетки — для подсказок при наведении (только CSS, без запросов на hover)
+        _details = await Meals.GetRangeDetailsAsync(_grid.Weeks[0][0].Date, _grid.Weeks[^1][6].Date);
+    }
 
     // Голосование завершилось или кто-то изменил календарь: обновляем сетку у всех открытых страниц
     private Task OnChangedAsync() => InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });

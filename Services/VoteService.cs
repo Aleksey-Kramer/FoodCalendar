@@ -3,7 +3,14 @@ using FoodCalendar.Repositories;
 
 namespace FoodCalendar.Services;
 
-/// <summary>Голосование за основное блюдо на сегодня.</summary>
+/// <summary>Открытые голосования и свежие результаты для панели на главной.</summary>
+public sealed class VoteBoard
+{
+    public List<Vote> Open { get; init; } = new();
+    public List<Vote> Finished { get; init; } = new();
+}
+
+/// <summary>Голосование за основное блюдо на сегодня или будущий рабочий день.</summary>
 public sealed class VoteService
 {
     private readonly VoteRepository _votes;
@@ -19,19 +26,40 @@ public sealed class VoteService
         _notifier = notifier;
     }
 
-    public Task<Vote?> GetTodayAsync() => _votes.GetLatestAsync(CalendarService.Today);
+    public Task<Vote?> GetTodayAsync() => GetLatestAsync(CalendarService.Today);
 
-    public async Task<long> StartAsync(string rawName, IReadOnlyCollection<long> restaurantIds)
+    public Task<Vote?> GetLatestAsync(DateOnly date) => _votes.GetLatestAsync(date);
+
+    /// <summary>Все открытые голосования (прошедшие даты закрываются) и результаты начиная с сегодня.</summary>
+    public async Task<VoteBoard> GetBoardAsync()
+    {
+        var today = CalendarService.Today;
+        await _votes.CancelExpiredAsync(today);
+        return new VoteBoard { Open = await _votes.GetOpenAsync(), Finished = await _votes.GetFinishedFromAsync(today) };
+    }
+
+    /// <summary>Ближайший день, на который можно голосовать: сегодня или следующий рабочий.</summary>
+    public static DateOnly DefaultDate()
+    {
+        var d = CalendarService.Today;
+        while (CalendarService.IsWeekend(d)) d = d.AddDays(1);
+        return d;
+    }
+
+    /// <summary>Начинает голосование на дату (по умолчанию сегодня). В прошлое и на выходные нельзя.</summary>
+    public async Task<long> StartAsync(string rawName, IReadOnlyCollection<long> restaurantIds, DateOnly? forDate = null)
     {
         var name = PeopleService.NormalizeName(rawName);
-        var date = CalendarService.Today;
+        var date = forDate ?? CalendarService.Today;
+        if (date < CalendarService.Today)
+            throw new ValidationException("Голосовать в прошлое нельзя.");
         if (CalendarService.IsWeekend(date))
-            throw new ValidationException("Сегодня выходной, голосование не нужно.");
+            throw new ValidationException("На выходной голосование не нужно.");
         if (restaurantIds.Distinct().Count() < 2)
             throw new ValidationException("Выберите хотя бы два ресторана.");
         var existing = await _votes.GetLatestAsync(date);
         if (existing is { IsOpen: true })
-            throw new ValidationException("Голосование на сегодня уже идёт, присоединяйтесь.");
+            throw new ValidationException("Голосование на эту дату уже идёт, присоединяйтесь.");
         foreach (var id in restaurantIds.Distinct())
             await EnsureActiveAsync(id);
 

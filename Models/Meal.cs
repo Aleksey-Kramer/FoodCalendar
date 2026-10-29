@@ -32,6 +32,10 @@ public sealed class Meal
     /// <summary>Сумма всех позиций: личные + общие.</summary>
     public decimal ItemsTotal => OwnItemsTotal + SharedTotal;
 
+    /// <summary>Чек «заполнен»: есть файл, итог, позиции участников или общие сборы.</summary>
+    public bool HasReceiptData =>
+        ReceiptFile is not null || TotalAmount is not null || SharedItems.Count > 0 || Participants.Any(p => p.Items.Count > 0);
+
     /// <summary>Доля участника в общих позициях и сборах.</summary>
     public decimal ShareFor(long participantId)
     {

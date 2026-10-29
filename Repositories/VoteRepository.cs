@@ -26,6 +26,36 @@ public sealed class VoteRepository
         return vote;
     }
 
+    /// <summary>Все открытые голосования по возрастанию даты.</summary>
+    public async Task<List<Vote>> GetOpenAsync()
+    {
+        using var conn = _factory.Open();
+        var votes = (await conn.QueryAsync<Vote>(SelectSql + "WHERE v.status = 'open' ORDER BY v.date, v.id")).ToList();
+        foreach (var v in votes) await FillAsync(conn, v);
+        return votes;
+    }
+
+    /// <summary>Последние завершённые голосования начиная с даты, по одному на дату.</summary>
+    public async Task<List<Vote>> GetFinishedFromAsync(DateOnly from)
+    {
+        using var conn = _factory.Open();
+        var votes = (await conn.QueryAsync<Vote>(
+                SelectSql + "WHERE v.status = 'finished' AND v.date >= @from ORDER BY v.date, v.id DESC",
+                new { from = MealRepository.Key(from) }))
+            .GroupBy(v => v.Date).Select(g => g.First()).ToList();
+        foreach (var v in votes) await FillAsync(conn, v);
+        return votes;
+    }
+
+    /// <summary>Открытые голосования на прошедшие даты отменяются: голосовать в прошлое нельзя.</summary>
+    public async Task<int> CancelExpiredAsync(DateOnly before)
+    {
+        using var conn = _factory.Open();
+        return await conn.ExecuteAsync(
+            "UPDATE votes SET status = 'cancelled', finished_at = @now WHERE status = 'open' AND date < @before",
+            new { before = MealRepository.Key(before), now = RestaurantRepository.Now() });
+    }
+
     public async Task<Vote?> GetByIdAsync(long id)
     {
         using var conn = _factory.Open();

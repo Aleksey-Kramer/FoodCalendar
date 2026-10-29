@@ -1,0 +1,50 @@
+@* Содержимое чека одного приёма еды для подсказки в календаре: позиции, люди с их «Итого», общая сумма. *@
+<div class="tip__body">
+    @if (Meal.Participants.Any(p => p.Items.Count > 0) || Meal.SharedItems.Count > 0)
+    {
+        <table class="tip__items">
+            <tbody>
+            @foreach (var p in Meal.Participants)
+            {
+                @foreach (var i in p.Items)
+                {
+                    <tr @key="i.Id">
+                        <td>@i.Name</td>
+                        <td class="num">@(i.Qty > 1 ? $"× {i.Qty}" : "")</td>
+                        <td class="num">@Money.Format((i.Price ?? 0) * i.Qty)</td>
+                    </tr>
+                }
+            }
+            @foreach (var s in Meal.SharedItems)
+            {
+                <tr @key="s.Id">
+                    <td>@s.Name <span class="muted">· общее</span></td>
+                    <td class="num">@(s.Qty > 1 ? $"× {s.Qty}" : "")</td>
+                    <td class="num">@Money.Format(s.Amount)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+    @if (Meal.Participants.Count > 0)
+    {
+        <div class="tip__people">
+            @foreach (var p in Meal.Participants)
+            {
+                <div class="tip__person" @key="p.Id"><span>@p.Name</span><b>@Money.Format(Meal.TotalFor(p))</b></div>
+            }
+        </div>
+    }
+    <div class="tip__total">
+        <span>Итого@(Meal.TotalAmount is null ? " по позициям" : " по чеку")</span>
+        <b>@Money.Format(Meal.TotalAmount ?? Meal.ItemsTotal)</b>
+    </div>
+    @if (Meal.ReceiptFile is not null)
+    {
+        <div class="muted small">🧾 чек прикреплён</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Meal Meal { get; set; } = default!;
+}
