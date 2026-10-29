@@ -36,8 +36,8 @@
         </div>
     }
     <div class="tip__total">
-        <span>Итого@(Meal.TotalAmount is null ? " по позициям" : " по чеку")</span>
-        <b>@Money.Format(Meal.TotalAmount ?? Meal.ItemsTotal)</b>
+        <span>Итого по чеку</span>
+        <b>@Money.Format(Meal.ItemsTotal)</b>
     </div>
     @if (Meal.ReceiptFile is not null)
     {

@@ -67,24 +67,10 @@
 
             <div class="field">
                 <span class="field__label">Итого по чеку</span>
-                <form class="inline-form total-form" data-arrow-nav @onsubmit="SaveTotal" @onsubmit:preventDefault="true">
-                    <MoneyInput CssClass="input input--grow" @bind-Value="_total" @bind-Value:after="SaveTotal" Placeholder="0" />
-                    <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">Сохранить</button>
-                    @if (_totalSaved)
-                    {
-                        <span class="saved small">✓ Сохранено</span>
-                    }
-                </form>
-            </div>
-            <div class="small">
-                Сумма позиций: <b>@Money.Format(Meal.ItemsTotal)</b>
+                <div class="receipt__total" title="Считается из позиций участников и общих сборов">@Money.Format(Meal.ItemsTotal)</div>
                 @if (Meal.SharedTotal > 0)
                 {
-                    <span class="muted"> (личные @Money.Format(Meal.OwnItemsTotal) + общие @Money.Format(Meal.SharedTotal))</span>
-                }
-                @if (Meal.TotalAmount is { } t && t != Meal.ItemsTotal)
-                {
-                    <span class="muted"> · разница с чеком: @Money.Format(t - Meal.ItemsTotal)</span>
+                    <div class="small muted">личные @Money.Format(Meal.OwnItemsTotal) + общие @Money.Format(Meal.SharedTotal)</div>
                 }
             </div>
         </div>
@@ -126,7 +112,7 @@
                         </table>
                     }
                     <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="() => AddItem(p.Id)" @onsubmit:preventDefault="true">
-                        <input class="input input--grow" list="menu-@Meal.Id" @bind="draft.Name" @bind:event="oninput" @bind:after="() => AutoPrice(draft)" maxlength="100" placeholder="Позиция" />
+                        <SuggestInput @bind-Value="draft.Name" Items="_menuSuggest" OnPick="it => PickMenuItem(draft, it)" MaxLength="100" Placeholder="Позиция" />
                         <MoneyInput @bind-Value="draft.Price" Placeholder="Цена" />
                         <input class="input input--qty" type="number" min="1" max="99" @bind="draft.Qty" title="Количество" />
                         @if (!IsMenuItem(draft))
@@ -139,7 +125,7 @@
             }
 
             <form class="inline-form inline-form--wrap participant-add" data-arrow-nav @onsubmit="AddParticipant" @onsubmit:preventDefault="true">
-                <input class="input input--grow" list="people-list" @bind="_newName" @bind:event="oninput" maxlength="60" placeholder="Имя участника" />
+                <SuggestInput @bind-Value="_newName" Items="_peopleSuggest" MaxLength="60" Placeholder="Имя участника" />
                 @if (!IsKnownPerson)
                 {
                     <label class="check small"><input type="checkbox" @bind="_saveToList" /> сохранить в список</label>
@@ -182,7 +168,7 @@
         <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="AddShared" @onsubmit:preventDefault="true" style="margin-top:8px">
             @if (_shared.Kind == "item")
             {
-                <input class="input input--grow" list="menu-@Meal.Id" @bind="_shared.Name" @bind:event="oninput" @bind:after="AutoPriceShared" maxlength="100" placeholder="Соус, упаковка, пакет…" />
+                <SuggestInput @bind-Value="_shared.Name" Items="_menuSuggest" OnPick="PickSharedMenuItem" MaxLength="100" Placeholder="Соус, упаковка, пакет…" />
                 <MoneyInput @bind-Value="_shared.Price" Placeholder="Цена" />
                 <input class="input input--qty" type="number" min="1" max="99" @bind="_shared.Qty" title="Количество" />
                 @if (FindMenuItem(_shared.Name) is null)
@@ -211,12 +197,6 @@
         </div>
     </div>
 
-    <datalist id="menu-@Meal.Id">
-        @foreach (var mi in _menu)
-        {
-            <option value="@mi.Name">@(mi.Price is null ? "" : Money.Format(mi.Price))</option>
-        }
-    </datalist>
 </div>
 
 @code {
@@ -236,9 +216,9 @@
 
     private readonly Dictionary<long, ItemDraft> _drafts = new();
     private List<RestaurantItem> _menu = new();
+    private List<SuggestInput.SuggestItem> _menuSuggest = new();
+    private List<SuggestInput.SuggestItem> _peopleSuggest = new();
     private long _menuRestaurantId;
-    private decimal? _total;
-    private bool _totalSaved;
     private string _newName = "";
     private bool _saveToList = true;
     private bool _confirmDelete;
@@ -247,12 +227,31 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        _total = Meal.TotalAmount;
+        _peopleSuggest = People.Select(p => new SuggestInput.SuggestItem(p.Name)).ToList();
         if (_menuRestaurantId != Meal.RestaurantId)
         {
             _menuRestaurantId = Meal.RestaurantId;
-            _menu = await RestaurantSvc.GetItemsAsync(Meal.RestaurantId);
+            await ReloadMenuAsync();
         }
+    }
+
+    private async Task ReloadMenuAsync()
+    {
+        _menu = await RestaurantSvc.GetItemsAsync(Meal.RestaurantId);
+        _menuSuggest = _menu.Select(m => new SuggestInput.SuggestItem(m.Name, m.Price is null ? null : Money.Format(m.Price), m)).ToList();
+    }
+
+    /// <summary>Выбор позиции из подсказок: подставляет название и цену из меню.</summary>
+    private void PickMenuItem(ItemDraft draft, SuggestInput.SuggestItem it)
+    {
+        draft.Name = it.Text;
+        if (it.Tag is RestaurantItem { Price: { } price }) draft.Price = price;
+    }
+
+    private void PickSharedMenuItem(SuggestInput.SuggestItem it)
+    {
+        _shared.Name = it.Text;
+        if (it.Tag is RestaurantItem { Price: { } price }) _shared.Price = price;
     }
 
     private ItemDraft DraftFor(long participantId)
@@ -268,11 +267,6 @@
     /// <summary>Позиция уже есть в меню ресторана — галочка «в меню» не нужна.</summary>
     private bool IsMenuItem(ItemDraft draft) => FindMenuItem(draft.Name) is not null;
 
-    /// <summary>Подставляет цену из меню ресторана, если название совпало.</summary>
-    private void AutoPrice(ItemDraft draft)
-    {
-        if (FindMenuItem(draft.Name)?.Price is { } price) draft.Price = price;
-    }
 
     private Task Run(Func<Task> action) => Run(async () => { await action(); return true; });
 
@@ -294,13 +288,6 @@
             _busy = false;
         }
     }
-
-    /// <summary>Сохраняется и при уходе из поля, и по кнопке «Сохранить» — кнопка показывает отметку.</summary>
-    private Task SaveTotal() => Run(async () =>
-    {
-        await Meals.SetTotalAsync(Meal.Id, _total);
-        _totalSaved = true;
-    });
 
     private Task OnReceipt(InputFileChangeEventArgs e) => Run(() => Meals.AttachReceiptAsync(Meal.Id, e.File));
 
@@ -328,7 +315,7 @@
         // Уже известная позиция меню не перезаписывается (галочка скрыта), как и у участников из списка.
         var saveToMenu = d.SaveToMenu && !IsMenuItem(d);
         await Meals.AddItemAsync(participantId, d.Name, d.Price, d.Qty, saveToMenu);
-        if (saveToMenu) _menu = await RestaurantSvc.GetItemsAsync(Meal.RestaurantId);
+        if (saveToMenu) await ReloadMenuAsync();
         _drafts[participantId] = new ItemDraft { SaveToMenu = d.SaveToMenu };
     });
 
@@ -347,10 +334,6 @@
         public HashSet<long> ParticipantIds { get; } = new();
     }
 
-    private void AutoPriceShared()
-    {
-        if (FindMenuItem(_shared.Name)?.Price is { } price) _shared.Price = price;
-    }
 
     private SharedDraft _shared = new();
 
@@ -388,7 +371,7 @@
         // известная позиция меню не перезаписывается (галочка скрыта), как и у личных позиций
         var saveToMenu = _shared.Kind == "item" && _shared.SaveToMenu && FindMenuItem(_shared.Name) is null;
         await Meals.AddSharedItemAsync(Meal.Id, _shared.Name, _shared.Kind, _shared.Price, _shared.Qty, _shared.SplitAll, _shared.ParticipantIds.ToList(), saveToMenu);
-        if (saveToMenu) _menu = await RestaurantSvc.GetItemsAsync(Meal.RestaurantId);
+        if (saveToMenu) await ReloadMenuAsync();
         _shared = new SharedDraft();
     });
 

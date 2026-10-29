@@ -1,0 +1,114 @@
+@* Текстовое поле с собственным списком подсказок: поиск по подстроке без учёта регистра,
+   стрелки ↑↓ и Enter выбирают, Esc закрывает, клик по пункту подставляет. Enter при открытом
+   списке не отправляет форму (см. wwwroot/app.js, class suggest__input + data-open). *@
+<div class="suggest">
+    <input class="@CssClass suggest__input" type="text" autocomplete="off" spellcheck="false"
+           value="@Value" maxlength="@MaxLength" placeholder="@Placeholder" title="@Title"
+           data-open="@(IsListVisible ? "true" : "false")"
+           @oninput="OnInput" @onkeydown="OnKeyDown" @onfocus="Open" @onblur="Close" />
+    @if (IsListVisible)
+    {
+        <ul class="suggest__list" role="listbox" @onmousedown:preventDefault="true">
+            @for (var i = 0; i < _matches.Count; i++)
+            {
+                var item = _matches[i];
+                var idx = i;
+                <li class="suggest__item @(idx == _index ? "suggest__item--active" : "")" role="option"
+                    @key="item.Text" @onmousedown="() => Pick(item)" @onmousemove="() => _index = idx">
+                    <span class="suggest__text">@item.Text</span>
+                    @if (item.Hint is not null)
+                    {
+                        <span class="suggest__hint">@item.Hint</span>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>Пункт подсказки: текст, подпись справа (например, цена) и произвольный объект-источник.</summary>
+    public sealed record SuggestItem(string Text, string? Hint = null, object? Tag = null);
+
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    /// <summary>Вызывается, когда пользователь выбрал пункт из списка (или ввёл точное совпадение).</summary>
+    [Parameter] public EventCallback<SuggestItem> OnPick { get; set; }
+    [Parameter] public IReadOnlyList<SuggestItem> Items { get; set; } = Array.Empty<SuggestItem>();
+    [Parameter] public string CssClass { get; set; } = "input";
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public int MaxLength { get; set; } = 100;
+    [Parameter] public int MaxItems { get; set; } = 8;
+
+    private List<SuggestItem> _matches = new();
+    private int _index = -1;
+    private bool _open;
+
+    private bool IsListVisible => _open && _matches.Count > 0;
+
+    protected override void OnParametersSet() => Rebuild();
+
+    private void Rebuild()
+    {
+        var q = Value.Trim();
+        IEnumerable<SuggestItem> source = Items;
+        if (q.Length > 0)
+        {
+            source = Items
+                .Where(i => i.Text.Contains(q, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(i => i.Text.StartsWith(q, StringComparison.OrdinalIgnoreCase))
+                .ThenBy(i => i.Text, StringComparer.OrdinalIgnoreCase);
+        }
+        _matches = source.Take(MaxItems).ToList();
+        // при наборе текста первый подходящий пункт подсвечен: Enter подставит его
+        _index = q.Length > 0 && _matches.Count > 0 ? 0 : -1;
+    }
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        Value = e.Value?.ToString() ?? "";
+        _open = true;
+        Rebuild();
+        await ValueChanged.InvokeAsync(Value);
+        // точное совпадение (без учёта регистра) подставляется сразу, например цену из меню
+        var exact = Items.FirstOrDefault(i => string.Equals(i.Text, Value.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (exact is not null) await OnPick.InvokeAsync(exact);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                if (!_open) { _open = true; Rebuild(); }
+                if (_matches.Count > 0) _index = (_index + 1) % _matches.Count;
+                break;
+            case "ArrowUp":
+                if (_matches.Count > 0) _index = _index <= 0 ? _matches.Count - 1 : _index - 1;
+                break;
+            case "Enter":
+                if (IsListVisible && _index >= 0) await Pick(_matches[_index]);
+                break;
+            case "Escape":
+                _open = false;
+                break;
+        }
+    }
+
+    private void Open()
+    {
+        _open = true;
+        Rebuild();
+    }
+
+    private void Close() => _open = false;
+
+    private async Task Pick(SuggestItem item)
+    {
+        Value = item.Text;
+        _open = false;
+        await ValueChanged.InvokeAsync(Value);
+        await OnPick.InvokeAsync(item);
+    }
+}

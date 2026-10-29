@@ -57,3 +57,12 @@ document.addEventListener('keydown', e => {
     next.setSelectionRange(p, p);
   }
 });
+
+// Поле с подсказками (SuggestInput): при открытом списке Enter выбирает пункт, а не отправляет форму;
+// стрелки ↑↓ не двигают курсор.
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement) || !el.classList.contains('suggest__input')) return;
+  if (el.dataset.open !== 'true') return;
+  if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') e.preventDefault();
+});
