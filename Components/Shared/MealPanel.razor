@@ -63,10 +63,17 @@
                 <div class="muted small">Картинка или PDF, до 10 МБ</div>
             }
 
-            <label class="field">
+            <div class="field">
                 <span class="field__label">Итого по чеку</span>
-                <input type="number" step="0.01" min="0" class="input" @bind="_total" @bind:after="SaveTotal" placeholder="0" />
-            </label>
+                <form class="inline-form total-form" data-arrow-nav @onsubmit="SaveTotal" @onsubmit:preventDefault="true">
+                    <MoneyInput CssClass="input input--grow" @bind-Value="_total" @bind-Value:after="SaveTotal" Placeholder="0" />
+                    <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">Сохранить</button>
+                    @if (_totalSaved)
+                    {
+                        <span class="saved small">✓ Сохранено</span>
+                    }
+                </form>
+            </div>
             <div class="small">
                 Сумма позиций: <b>@Money.Format(Meal.ItemsTotal)</b>
                 @if (Meal.SharedTotal > 0)
@@ -116,19 +123,25 @@
                             </tbody>
                         </table>
                     }
-                    <form class="inline-form inline-form--wrap" @onsubmit="() => AddItem(p.Id)" @onsubmit:preventDefault="true">
-                        <input class="input input--grow" list="menu-@Meal.Id" @bind="draft.Name" @bind:after="() => AutoPrice(draft)" maxlength="100" placeholder="Позиция" />
-                        <input class="input input--num" type="number" step="0.01" min="0" @bind="draft.Price" placeholder="Цена" />
+                    <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="() => AddItem(p.Id)" @onsubmit:preventDefault="true">
+                        <input class="input input--grow" list="menu-@Meal.Id" @bind="draft.Name" @bind:event="oninput" @bind:after="() => AutoPrice(draft)" maxlength="100" placeholder="Позиция" />
+                        <MoneyInput @bind-Value="draft.Price" Placeholder="Цена" />
                         <input class="input input--qty" type="number" min="1" max="99" @bind="draft.Qty" title="Количество" />
-                        <label class="check small" title="Сохранить позицию и цену в меню ресторана"><input type="checkbox" @bind="draft.SaveToMenu" /> в меню</label>
+                        @if (!IsMenuItem(draft))
+                        {
+                            <label class="check small" title="Сохранить позицию и цену в меню ресторана"><input type="checkbox" @bind="draft.SaveToMenu" /> в меню</label>
+                        }
                         <button type="submit" class="btn btn--sm" disabled="@_busy">+ Позиция</button>
                     </form>
                 </div>
             }
 
-            <form class="inline-form inline-form--wrap participant-add" @onsubmit="AddParticipant" @onsubmit:preventDefault="true">
-                <input class="input input--grow" list="people-list" @bind="_newName" maxlength="60" placeholder="Имя участника" />
-                <label class="check small"><input type="checkbox" @bind="_saveToList" /> сохранить в список</label>
+            <form class="inline-form inline-form--wrap participant-add" data-arrow-nav @onsubmit="AddParticipant" @onsubmit:preventDefault="true">
+                <input class="input input--grow" list="people-list" @bind="_newName" @bind:event="oninput" maxlength="60" placeholder="Имя участника" />
+                @if (!IsKnownPerson)
+                {
+                    <label class="check small"><input type="checkbox" @bind="_saveToList" /> сохранить в список</label>
+                }
                 <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">+ Участник</button>
             </form>
         </div>
@@ -164,9 +177,9 @@
                 <button type="button" class="btn btn--sm @(_shared.Kind == kind ? "btn--primary" : "")" @onclick="() => PickKind(kind, title)">@title</button>
             }
         </div>
-        <form class="inline-form inline-form--wrap" @onsubmit="AddShared" @onsubmit:preventDefault="true" style="margin-top:8px">
+        <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="AddShared" @onsubmit:preventDefault="true" style="margin-top:8px">
             <input class="input input--grow" @bind="_shared.Name" maxlength="100" placeholder="@(_shared.Kind == "item" ? "Соус, упаковка, пакет…" : KindTitle(_shared.Kind))" />
-            <input class="input input--num" type="number" step="0.01" min="0" @bind="_shared.Price" placeholder="Сумма" />
+            <MoneyInput @bind-Value="_shared.Price" Placeholder="Сумма" />
             @if (_shared.Kind == "item")
             {
                 <input class="input input--qty" type="number" min="1" max="99" @bind="_shared.Qty" title="Количество" />
@@ -207,13 +220,14 @@
         public string Name { get; set; } = "";
         public decimal? Price { get; set; }
         public int Qty { get; set; } = 1;
-        public bool SaveToMenu { get; set; }
+        public bool SaveToMenu { get; set; } = true;
     }
 
     private readonly Dictionary<long, ItemDraft> _drafts = new();
     private List<RestaurantItem> _menu = new();
     private long _menuRestaurantId;
     private decimal? _total;
+    private bool _totalSaved;
     private string _newName = "";
     private bool _saveToList = true;
     private bool _confirmDelete;
@@ -237,11 +251,16 @@
         return d;
     }
 
+    private RestaurantItem? FindMenuItem(string name) =>
+        _menu.FirstOrDefault(m => string.Equals(m.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Позиция уже есть в меню ресторана — галочка «в меню» не нужна.</summary>
+    private bool IsMenuItem(ItemDraft draft) => FindMenuItem(draft.Name) is not null;
+
     /// <summary>Подставляет цену из меню ресторана, если название совпало.</summary>
     private void AutoPrice(ItemDraft draft)
     {
-        var match = _menu.FirstOrDefault(m => string.Equals(m.Name, draft.Name.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (match?.Price is not null) draft.Price = match.Price;
+        if (FindMenuItem(draft.Name)?.Price is { } price) draft.Price = price;
     }
 
     private Task Run(Func<Task> action) => Run(async () => { await action(); return true; });
@@ -265,15 +284,24 @@
         }
     }
 
-    private Task SaveTotal() => Run(() => Meals.SetTotalAsync(Meal.Id, _total));
+    /// <summary>Сохраняется и при уходе из поля, и по кнопке «Сохранить» — кнопка показывает отметку.</summary>
+    private Task SaveTotal() => Run(async () =>
+    {
+        await Meals.SetTotalAsync(Meal.Id, _total);
+        _totalSaved = true;
+    });
 
     private Task OnReceipt(InputFileChangeEventArgs e) => Run(() => Meals.AttachReceiptAsync(Meal.Id, e.File));
 
     private Task RemoveReceipt() => Run(() => Meals.RemoveReceiptAsync(Meal.Id));
 
+    /// <summary>Имя совпадает с сохранённым человеком — галочка «сохранить в список» не нужна.</summary>
+    private bool IsKnownPerson =>
+        People.Any(p => string.Equals(p.Name, _newName.Trim(), StringComparison.OrdinalIgnoreCase));
+
     private Task AddParticipant() => Run(async () =>
     {
-        await Meals.AddParticipantAsync(Meal.Id, _newName, _saveToList);
+        await Meals.AddParticipantAsync(Meal.Id, _newName, _saveToList || IsKnownPerson);
         _newName = "";
     });
 
@@ -286,8 +314,10 @@
     private Task AddItem(long participantId) => Run(async () =>
     {
         var d = DraftFor(participantId);
-        await Meals.AddItemAsync(participantId, d.Name, d.Price, d.Qty, d.SaveToMenu);
-        if (d.SaveToMenu) _menu = await RestaurantSvc.GetItemsAsync(Meal.RestaurantId);
+        // Уже известная позиция меню не перезаписывается (галочка скрыта), как и у участников из списка.
+        var saveToMenu = d.SaveToMenu && !IsMenuItem(d);
+        await Meals.AddItemAsync(participantId, d.Name, d.Price, d.Qty, saveToMenu);
+        if (saveToMenu) _menu = await RestaurantSvc.GetItemsAsync(Meal.RestaurantId);
         _drafts[participantId] = new ItemDraft { SaveToMenu = d.SaveToMenu };
     });
 

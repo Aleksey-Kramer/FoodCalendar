@@ -1,0 +1,20 @@
+@* Поле суммы: текстовое, с разделением разрядов (30 000). Живое форматирование — в wwwroot/app.js (класс money). *@
+<input type="text" inputmode="decimal" autocomplete="off" class="@CssClass money"
+       value="@Money.FormatInput(Value)" @onchange="OnChange"
+       placeholder="@Placeholder" title="@Title" />
+
+@code {
+    [Parameter] public decimal? Value { get; set; }
+    [Parameter] public EventCallback<decimal?> ValueChanged { get; set; }
+    [Parameter] public string CssClass { get; set; } = "input input--num";
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Title { get; set; }
+
+    private async Task OnChange(ChangeEventArgs e)
+    {
+        var parsed = Money.Parse(e.Value?.ToString());
+        if (parsed == Value) return;
+        Value = parsed;
+        await ValueChanged.InvokeAsync(parsed);
+    }
+}

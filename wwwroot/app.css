@@ -383,3 +383,8 @@ button.cal-cell:hover .cal-empty { color: var(--primary); }
   .modal { padding: 14px; border-radius: 16px; }
   .vote__cancel { margin-left: 0; }
 }
+
+/* Сумма чека: поле + «Сохранить» + отметка */
+.total-form { margin: 0; flex-wrap: wrap; }
+.total-form .input--grow { flex: 1 1 120px; min-width: 120px; }
+.saved { color: var(--success); font-weight: 600; white-space: nowrap; }

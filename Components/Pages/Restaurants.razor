@@ -76,9 +76,9 @@ else
                 <div class="alert">@_menuError</div>
             }
 
-            <form class="inline-form inline-form--wrap" @onsubmit="SaveMenuItem" @onsubmit:preventDefault="true">
+            <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="SaveMenuItem" @onsubmit:preventDefault="true">
                 <input class="input input--grow" @bind="_menuName" maxlength="100" placeholder="Название" />
-                <input class="input input--num" type="number" step="0.01" min="0" @bind="_menuPrice" placeholder="Цена" />
+                <MoneyInput @bind-Value="_menuPrice" Placeholder="Цена" />
                 <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">@(_menuEditId is null ? "Добавить" : "Сохранить")</button>
                 @if (_menuEditId is not null)
                 {
