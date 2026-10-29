@@ -1,4 +1,5 @@
 using FoodCalendar.Data;
+using FoodCalendar.Models;
 using Microsoft.AspNetCore.Components.Forms;
 
 namespace FoodCalendar.Services;
@@ -15,6 +16,15 @@ public sealed class ReceiptService
 
     public static string? Url(string? fileName) =>
         string.IsNullOrEmpty(fileName) ? null : "/receipts/" + fileName;
+
+    /// <summary>Имя файла для скачивания: receipt-2026-10-29-Evos.pdf (расширение — из сохранённого файла).</summary>
+    public static string DownloadName(Meal meal)
+    {
+        var ext = Path.GetExtension(meal.ReceiptFile ?? "");
+        var name = new string(meal.RestaurantName.Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray()).Trim('-');
+        if (name.Length == 0) name = "receipt";
+        return $"receipt-{meal.Date}-{name}{ext}";
+    }
 
     public static bool IsPdf(string? fileName) =>
         fileName is not null && fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);

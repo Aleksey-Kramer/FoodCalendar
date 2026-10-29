@@ -2,6 +2,8 @@
 @implements IDisposable
 @inject MealService Meals
 @inject ChangeNotifier Notifier
+@inject PeopleService PeopleSvc
+@inject AdminSession Session
 @inject I18n L
 
 <PageTitle>@(_meal is null ? L["receipt.title"] : $"{L["receipt.title"]} · {_meal.RestaurantName} · {L.DateLong(_meal.DateValue)}")</PageTitle>
@@ -19,7 +21,17 @@ else
     var m = _meal;
     <div class="rcpt-bar">
         <a class="btn" href="/day/@CalendarService.Key(m.DateValue)">← @L["receipt.backToDay"]</a>
-        <button type="button" class="btn btn--primary" onclick="window.print()">🖨 @L["receipt.print"]</button>
+        <span class="rcpt-bar__right">
+            @if (m.ReceiptFile is { } df)
+            {
+                <a class="btn" href="@ReceiptService.Url(df)" download="@ReceiptService.DownloadName(m)">⬇ @L["receipt.download"]</a>
+            }
+            @if (Session.IsAdmin)
+            {
+                <button type="button" class="btn @(_edit ? "" : "btn--primary")" @onclick="() => _edit = !_edit">@(_edit ? "👁 " + L["receipt.view"] : "✎ " + L["receipt.edit"])</button>
+            }
+            <button type="button" class="btn @(_edit ? "" : "btn--primary")" onclick="window.print()">🖨 @L["receipt.print"]</button>
+        </span>
     </div>
 
     @if (m.IsHidden)
@@ -27,6 +39,13 @@ else
         <p class="alert">@L["receipt.hidden"]</p>
     }
 
+    @if (_edit && Session.IsAdmin)
+    {
+        @* Редактирование: та же панель, что на странице дня; смена ресторана — только со страницы дня *@
+        <MealPanel Meal="m" People="_people" OnChanged="ReloadAsync" AllowRestaurantActions="false" />
+    }
+    else
+    {
     <article class="rcpt">
         <header class="rcpt__head">
             <RestaurantThumb Name="@m.RestaurantName" ImageFile="@m.ImageFile" CssClass="thumb--card" />
@@ -121,29 +140,39 @@ else
                             <img class="rcpt__img" src="@ReceiptService.Url(rf)" alt="@L["meal.receipt"]" loading="lazy" />
                         </a>
                     }
+                    <a class="btn btn--sm rcpt__download" href="@ReceiptService.Url(rf)" download="@ReceiptService.DownloadName(m)">⬇ @L["receipt.download"]</a>
                 </div>
             }
         </footer>
     </article>
+    }
 }
 
 @code {
     [Parameter] public long MealId { get; set; }
 
     private Meal? _meal;
+    private List<Person> _people = new();
     private bool _loading = true;
+    private bool _edit;
 
     protected override void OnInitialized() => Notifier.Changed += OnChangedAsync;
 
     protected override async Task OnParametersSetAsync()
     {
-        _meal = await Meals.GetMealAsync(MealId);
+        await ReloadAsync();
         _loading = false;
+    }
+
+    private async Task ReloadAsync()
+    {
+        _meal = await Meals.GetMealAsync(MealId);
+        if (Session.IsAdmin) _people = await PeopleSvc.GetAllAsync();
     }
 
     private Task OnChangedAsync() => InvokeAsync(async () =>
     {
-        _meal = await Meals.GetMealAsync(MealId);
+        await ReloadAsync();
         StateHasChanged();
     });
 

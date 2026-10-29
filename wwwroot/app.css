@@ -541,3 +541,6 @@ button.pay:hover { filter: brightness(.95); }
   body { background: #fff; }
   .rcpt { box-shadow: none; border: 0; max-width: none; padding: 0; }
 }
+.rcpt-bar__right { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.receipt__links { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.rcpt__download { margin-top: 8px; }

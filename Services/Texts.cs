@@ -168,6 +168,8 @@ public static class Texts
         Add("receipt.share", "доля общих", "share of shared", "umumiy ulush");
         Add("receipt.file", "Файл чека", "Receipt file", "Chek fayli");
         Add("receipt.noItems", "Позиций нет", "No items", "Pozitsiyalar yo‘q");
+        Add("receipt.download", "Скачать", "Download", "Yuklab olish");
+        Add("receipt.edit", "Редактировать", "Edit", "Tahrirlash");
         Add("tip.attached", "🧾 чек прикреплён", "🧾 receipt attached", "🧾 chek biriktirilgan");
 
         // ---- голосование ----

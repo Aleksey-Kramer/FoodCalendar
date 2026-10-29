@@ -17,7 +17,7 @@
                 <span class="badge">@L["ui.inactive"]</span>
             }
         </div>
-        @if (Session.IsAdmin)
+        @if (Session.IsAdmin && AllowRestaurantActions)
         {
         <div class="meal__actions">
             <button type="button" class="btn btn--sm" @onclick="() => OnChangeRestaurant.InvokeAsync(Meal)">@L["day.changeRestaurant"]</button>
@@ -59,10 +59,13 @@
                         <img class="receipt__img" src="@ReceiptService.Url(rf)" alt="@L["meal.receipt"]" loading="lazy" />
                     </a>
                 }
-                @if (Session.IsAdmin)
-                {
-                    <button type="button" class="btn btn--sm btn--danger" @onclick="RemoveReceipt" disabled="@_busy">@L["meal.removeReceipt"]</button>
-                }
+                <div class="receipt__links">
+                    <a class="btn btn--sm" href="@ReceiptService.Url(rf)" download="@ReceiptService.DownloadName(Meal)">⬇ @L["receipt.download"]</a>
+                    @if (Session.IsAdmin)
+                    {
+                        <button type="button" class="btn btn--sm btn--danger" @onclick="RemoveReceipt" disabled="@_busy">@L["meal.removeReceipt"]</button>
+                    }
+                </div>
             }
             else if (Session.IsAdmin)
             {
@@ -236,6 +239,8 @@
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public EventCallback<Meal> OnChangeRestaurant { get; set; }
     [Parameter] public EventCallback<Meal> OnDelete { get; set; }
+    /// <summary>Кнопки «Сменить ресторан» и «Убрать/Удалить»; на странице чека они не нужны.</summary>
+    [Parameter] public bool AllowRestaurantActions { get; set; } = true;
 
     private sealed class ItemDraft
     {
