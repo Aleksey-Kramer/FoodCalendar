@@ -5,6 +5,7 @@
 @inject PeopleService PeopleSvc
 @inject ChangeNotifier Notifier
 @inject I18n L
+@inject AdminSession Session
 @implements IDisposable
 
 <PageTitle>@L["app.title"]</PageTitle>
@@ -136,11 +137,17 @@ else
                 <div class="alert">@_error</div>
             }
 
-            @if (_active.Count == 0)
+            @if (!Session.IsAdmin)
+            {
+                <p class="muted small">🔒 @L["auth.readOnly"] <a href="/login?returnUrl=/">@L["auth.login"]</a></p>
+            }
+            else if (_active.Count == 0)
             {
                 <p>@L["cal.noActive"] <a href="/restaurants">@L["cal.addRestaurant"]</a></p>
             }
 
+            @if (Session.IsAdmin)
+            {
             <div class="picker">
                 @foreach (var r in _active)
                 {
@@ -153,11 +160,12 @@ else
                     </button>
                 }
             </div>
+            }
 
             <div class="modal__foot modal__foot--split">
                 <a class="btn" href="/day/@CalendarService.Key(dd.Date)">@L["cal.details"]</a>
                 <span class="modal__foot-right">
-                    @if (dd.Main is not null)
+                    @if (dd.Main is not null && Session.IsAdmin)
                     {
                         <button type="button" class="btn btn--danger" disabled="@_busy" @onclick="Clear">@L["cal.clear"]</button>
                     }

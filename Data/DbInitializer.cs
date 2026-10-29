@@ -121,6 +121,20 @@ public sealed class DbInitializer
             _logger.LogInformation("Миграция: добавлена колонка meals.mode");
         }
 
+        // meal_participants.is_paid: отметка «оплатил» (по умолчанию — ожидает оплаты)
+        if (!conn.Query<string>("SELECT name FROM pragma_table_info('meal_participants')").Contains("is_paid"))
+        {
+            conn.Execute("ALTER TABLE meal_participants ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0 CHECK (is_paid IN (0, 1))");
+            _logger.LogInformation("Миграция: добавлена колонка meal_participants.is_paid");
+        }
+        // ux_meals_main: уникальность только среди видимых основных — скрытые чеки разных ресторанов сосуществуют
+        var mainIndexSql = conn.ExecuteScalar<string>("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'ux_meals_main'") ?? "";
+        if (mainIndexSql.Length > 0 && !mainIndexSql.Contains("is_hidden"))
+        {
+            conn.Execute("DROP INDEX ux_meals_main");
+            conn.Execute("CREATE UNIQUE INDEX ux_meals_main ON meals(date) WHERE is_main = 1 AND is_hidden = 0");
+            _logger.LogInformation("Миграция: индекс ux_meals_main учитывает скрытые приёмы");
+        }
         // meal_shared_items.kind: новые типы сборов (обслуживание, чаевые). SQLite не умеет менять CHECK —
         // таблица пересоздаётся; внешние ключи на время выключены, иначе DROP каскадно удалит привязки участников.
         var sharedSql = conn.ExecuteScalar<string>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'meal_shared_items'") ?? "";

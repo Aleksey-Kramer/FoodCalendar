@@ -28,6 +28,9 @@ builder.Services.AddScoped<PeopleRepository>();
 builder.Services.AddScoped<VoteRepository>();
 
 builder.Services.AddScoped<I18n>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("Admin").Get<AdminOptions>() ?? new AdminOptions());
+builder.Services.AddSingleton<AdminAuth>();
+builder.Services.AddScoped<AdminSession>();
 builder.Services.AddScoped<RestaurantService>();
 builder.Services.AddScoped<CalendarService>();
 builder.Services.AddScoped<MealService>();
@@ -71,6 +74,26 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseAntiforgery();
+
+// Вход администратора: обычная HTML-форма, cookie с подписанным токеном на 30 дней
+app.MapPost("/auth/login", (HttpContext ctx, AdminAuth auth) =>
+{
+    var form = ctx.Request.Form;
+    if (!auth.Verify(form["login"], form["password"]))
+        return Results.Redirect("/login?failed=1");
+    ctx.Response.Cookies.Append(AdminAuth.CookieName, auth.CreateToken(), new CookieOptions
+    {
+        HttpOnly = true, SameSite = SameSiteMode.Lax, MaxAge = TimeSpan.FromDays(30), Path = "/"
+    });
+    var returnUrl = form["returnUrl"].ToString();
+    return Results.Redirect(returnUrl.StartsWith('/') && !returnUrl.StartsWith("//") ? returnUrl : "/");
+}).DisableAntiforgery();
+
+app.MapPost("/auth/logout", (HttpContext ctx) =>
+{
+    ctx.Response.Cookies.Delete(AdminAuth.CookieName, new CookieOptions { Path = "/" });
+    return Results.Redirect("/");
+}).DisableAntiforgery();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

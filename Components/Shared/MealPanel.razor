@@ -1,6 +1,7 @@
 @inject MealService Meals
 @inject RestaurantService RestaurantSvc
 @inject I18n L
+@inject AdminSession Session
 
 <div class="meal">
     <div class="meal__head">
@@ -16,6 +17,8 @@
                 <span class="badge">@L["ui.inactive"]</span>
             }
         </div>
+        @if (Session.IsAdmin)
+        {
         <div class="meal__actions">
             <button type="button" class="btn btn--sm" @onclick="() => OnChangeRestaurant.InvokeAsync(Meal)">@L["day.changeRestaurant"]</button>
             @if (_confirmDelete)
@@ -33,6 +36,7 @@
                 <button type="button" class="btn btn--sm btn--danger" @onclick="() => _confirmDelete = true">@(Meal.IsMain ? L["ui.remove"] : L["ui.delete"])</button>
             }
         </div>
+        }
     </div>
 
     @if (_error is not null)
@@ -55,9 +59,12 @@
                         <img class="receipt__img" src="@ReceiptService.Url(rf)" alt="@L["meal.receipt"]" loading="lazy" />
                     </a>
                 }
-                <button type="button" class="btn btn--sm btn--danger" @onclick="RemoveReceipt" disabled="@_busy">@L["meal.removeReceipt"]</button>
+                @if (Session.IsAdmin)
+                {
+                    <button type="button" class="btn btn--sm btn--danger" @onclick="RemoveReceipt" disabled="@_busy">@L["meal.removeReceipt"]</button>
+                }
             }
-            else
+            else if (Session.IsAdmin)
             {
                 <label class="btn btn--sm file-btn">
                     @L["meal.attachReceipt"]
@@ -93,7 +100,15 @@
                             <span class="participant__totals">@L.F("meal.ownShared", Money.Format(p.Subtotal), Money.Format(Meal.ShareFor(p.Id)))</span>
                         }
                         <span class="participant__sum" title="@L["meal.totalWithShare"]">@Money.Format(Meal.TotalFor(p))</span>
-                        <button type="button" class="btn btn--icon btn--xs" title="@L["meal.removeParticipant"]" @onclick="() => RemoveParticipant(p.Id)">✕</button>
+                        @if (Session.IsAdmin)
+                        {
+                            <button type="button" class="pay @(p.IsPaid ? "pay--paid" : "pay--pending")" title="@L["pay.toggle"]" disabled="@_busy" @onclick="() => TogglePaid(p)">@(p.IsPaid ? "✅ " + L["pay.paid"] : "⏳ " + L["pay.pending"])</button>
+                            <button type="button" class="btn btn--icon btn--xs" title="@L["meal.removeParticipant"]" @onclick="() => RemoveParticipant(p.Id)">✕</button>
+                        }
+                        else
+                        {
+                            <span class="pay @(p.IsPaid ? "pay--paid" : "pay--pending")">@(p.IsPaid ? "✅ " + L["pay.paid"] : "⏳ " + L["pay.pending"])</span>
+                        }
                     </div>
                     @if (p.Items.Count > 0)
                     {
@@ -106,12 +121,14 @@
                                     <td class="items__num">@Money.Format(it.Price)</td>
                                     <td class="items__num">× @it.Qty</td>
                                     <td class="items__num"><b>@Money.Format((it.Price ?? 0) * it.Qty)</b></td>
-                                    <td class="items__act"><button type="button" class="btn btn--icon btn--xs" title="@L["meal.deleteItem"]" @onclick="() => RemoveItem(it.Id)">✕</button></td>
+                                    <td class="items__act">@if (Session.IsAdmin) { <button type="button" class="btn btn--icon btn--xs" title="@L["meal.deleteItem"]" @onclick="() => RemoveItem(it.Id)">✕</button> }</td>
                                 </tr>
                             }
                             </tbody>
                         </table>
                     }
+                    @if (Session.IsAdmin)
+                    {
                     <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="() => AddItem(p.Id)" @onsubmit:preventDefault="true">
                         <SuggestInput @bind-Value="draft.Name" Items="_menuSuggest" OnPick="it => PickMenuItem(draft, it)" MaxLength="100" Placeholder="@L["meal.item"]" />
                         <MoneyInput @bind-Value="draft.Price" Placeholder="@L["ui.price"]" />
@@ -122,9 +139,12 @@
                         }
                         <button type="submit" class="btn btn--sm" disabled="@_busy">@L["meal.addItem"]</button>
                     </form>
+                    }
                 </div>
             }
 
+            @if (Session.IsAdmin)
+            {
             <form class="inline-form inline-form--wrap participant-add" data-arrow-nav @onsubmit="AddParticipant" @onsubmit:preventDefault="true">
                 <SuggestInput @bind-Value="_newName" Items="_peopleSuggest" MaxLength="60" Placeholder="@L["meal.participantName"]" />
                 @if (!IsKnownPerson)
@@ -133,6 +153,7 @@
                 }
                 <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">@L["meal.addParticipant"]</button>
             </form>
+            }
         </div>
     </div>
 
@@ -154,12 +175,14 @@
                         </td>
                         <td class="items__num">@(s.Qty > 1 ? $"{Money.Format(s.Price)} × {s.Qty}" : "")</td>
                         <td class="items__num"><b>@Money.Format(s.Amount)</b></td>
-                        <td class="items__act"><button type="button" class="btn btn--icon btn--xs" title="@L["ui.delete"]" @onclick="() => RemoveShared(s.Id)">✕</button></td>
+                        <td class="items__act">@if (Session.IsAdmin) { <button type="button" class="btn btn--icon btn--xs" title="@L["ui.delete"]" @onclick="() => RemoveShared(s.Id)">✕</button> }</td>
                     </tr>
                 }
                 </tbody>
             </table>
         }
+        @if (Session.IsAdmin)
+        {
         <div class="quick">
             <span class="seg" role="group" aria-label="@L["meal.mode"]">
                 @foreach (var mode in MealService.Modes)
@@ -202,6 +225,7 @@
                 }
             }
         </div>
+        }
     </div>
 
 </div>
@@ -309,6 +333,8 @@
         await Meals.AddParticipantAsync(Meal.Id, _newName, _saveToList || IsKnownPerson);
         _newName = "";
     });
+
+    private Task TogglePaid(MealParticipant p) => Run(() => Meals.SetParticipantPaidAsync(p.Id, !p.IsPaid));
 
     private Task RemoveParticipant(long id) => Run(async () =>
     {

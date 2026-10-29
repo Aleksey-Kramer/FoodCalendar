@@ -1,5 +1,7 @@
 @inherits LayoutComponentBase
 @inject I18n L
+@inject AdminSession Session
+@inject NavigationManager Nav
 
 <header class="topbar">
     <div class="container topbar__inner">
@@ -10,6 +12,17 @@
             <NavLink class="nav__link" href="/people">@L["nav.people"]</NavLink>
         </nav>
         <div class="prefs">
+            @if (Session.IsAdmin)
+            {
+                <form method="post" action="/auth/logout" class="prefs__auth">
+                    <span class="badge badge--admin">@L["auth.admin"]</span>
+                    <button type="submit" class="btn btn--sm">@L["auth.logout"]</button>
+                </form>
+            }
+            else
+            {
+                <a class="btn btn--sm" href="/login?returnUrl=@Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)">@L["auth.login"]</a>
+            }
             @* Переключатели работают на клиенте: cookie + перезагрузка (язык) или атрибут data-theme (тема) *@
             <select class="prefs__lang" title="@L["ui.language"]" aria-label="@L["ui.language"]" value="@L.Lang" onchange="prefs.setLang(this.value)">
                 @foreach (var (lang, title) in I18n.LanguageTitles)

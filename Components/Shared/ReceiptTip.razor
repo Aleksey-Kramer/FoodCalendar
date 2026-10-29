@@ -32,7 +32,7 @@
         <div class="tip__people">
             @foreach (var p in Meal.Participants)
             {
-                <div class="tip__person" @key="p.Id"><span>@p.Name</span><b>@Money.Format(Meal.TotalFor(p))</b></div>
+                <div class="tip__person" @key="p.Id"><span title="@(p.IsPaid ? L["pay.paid"] : L["pay.pending"])">@(p.IsPaid ? "✅" : "⏳") @p.Name</span><b>@Money.Format(Meal.TotalFor(p))</b></div>
             }
         </div>
     }

@@ -4,6 +4,7 @@
 @inject PeopleService PeopleSvc
 @inject NavigationManager Nav
 @inject I18n L
+@inject AdminSession Session
 
 <PageTitle>@(_date is { } d0 ? L.DateLong(d0) : L["day.title"])</PageTitle>
 
@@ -37,6 +38,10 @@ else
             <div class="alert">@_error</div>
         }
 
+        @if (!Session.IsAdmin)
+        {
+            <p class="muted small readonly-note">🔒 @L["auth.readOnly"] <a href="/login?returnUrl=/day/@DateKey">@L["auth.login"]</a></p>
+        }
         <section class="section">
             <div class="section__head">
                 <h2>@L["day.mainDish"]</h2>
@@ -48,14 +53,24 @@ else
             }
             else
             {
-                <button type="button" class="btn btn--primary" @onclick="() => OpenPicker(null)">@L["day.pickRestaurant"]</button>
+                @if (Session.IsAdmin)
+                {
+                    <button type="button" class="btn btn--primary" @onclick="() => OpenPicker(null)">@L["day.pickRestaurant"]</button>
+                }
+                else
+                {
+                    <p class="muted">@L["cal.pickMain"]</p>
+                }
             }
         </section>
 
         <section class="section">
             <div class="section__head">
                 <h2>@L["day.extras"] <span class="muted small">@L["day.extrasHint"]</span></h2>
-                <button type="button" class="btn btn--sm" @onclick="() => _addExtra = !_addExtra">@L["ui.addPlus"]</button>
+                @if (Session.IsAdmin)
+                {
+                    <button type="button" class="btn btn--sm" @onclick="() => _addExtra = !_addExtra">@L["ui.addPlus"]</button>
+                }
             </div>
 
             @if (_addExtra)

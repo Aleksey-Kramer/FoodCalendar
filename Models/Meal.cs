@@ -8,6 +8,7 @@ public sealed class Meal
     public string Date { get; set; } = "";
     public long RestaurantId { get; set; }
     public bool IsMain { get; set; }
+    public DateOnly DateValue => DateOnly.ParseExact(Date, "yyyy-MM-dd");
     /// <summary>Ресторан убран из дня: чек сохранён, но не показывается, пока ресторан не выберут снова.</summary>
     public bool IsHidden { get; set; }
     /// <summary>Формат чека: delivery (доставка: сборы «Доставка», «Работа сервиса») или dinein (еда на месте: «Обслуживание», «Чаевые»).</summary>
@@ -64,6 +65,8 @@ public sealed class MealParticipant
     public long? PersonId { get; set; }
     public string Name { get; set; } = "";
     public int SortOrder { get; set; }
+    /// <summary>Оплатил свою часть; по умолчанию — ожидает оплаты.</summary>
+    public bool IsPaid { get; set; }
     public List<MealItem> Items { get; set; } = new();
 
     public decimal Subtotal => Items.Sum(i => (i.Price ?? 0) * i.Qty);

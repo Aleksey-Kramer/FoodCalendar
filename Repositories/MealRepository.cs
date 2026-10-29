@@ -92,12 +92,21 @@ public sealed class MealRepository
             SelectSql + "WHERE m.date = @date AND m.is_main = 1 AND m.is_hidden = 0", new { date = Key(date) });
     }
 
-    /// <summary>Основное блюдо дня, включая скрытое (ресторан убран, чек сохранён).</summary>
-    public async Task<Meal?> GetMainAnyAsync(DateOnly date)
+    /// <summary>Скрытый чек ресторана на дату (последний), если ресторан убирали или меняли.</summary>
+    public async Task<Meal?> FindHiddenAsync(DateOnly date, long restaurantId)
     {
         using var conn = _factory.Open();
-        return await conn.QuerySingleOrDefaultAsync<Meal>(
-            SelectSql + "WHERE m.date = @date AND m.is_main = 1", new { date = Key(date) });
+        return await conn.QueryFirstOrDefaultAsync<Meal>(
+            SelectSql + "WHERE m.date = @date AND m.restaurant_id = @restaurantId AND m.is_hidden = 1 ORDER BY m.id DESC LIMIT 1",
+            new { date = Key(date), restaurantId });
+    }
+
+    /// <summary>Возвращает скрытый приём в день в нужной роли (основное или дополнительное с меткой).</summary>
+    public async Task RestoreAsync(long id, bool isMain, string? label)
+    {
+        using var conn = _factory.Open();
+        await conn.ExecuteAsync("UPDATE meals SET is_hidden = 0, is_main = @isMain, label = @label, updated_at = @now WHERE id = @id",
+            new { id, isMain = isMain ? 1 : 0, label, now = RestaurantRepository.Now() });
     }
 
     /// <summary>Скрывает основное блюдо: ресторан убран, чек и участники остаются.</summary>
@@ -124,14 +133,6 @@ public sealed class MealRepository
             "INSERT INTO meals (date, restaurant_id, is_main, label, created_at, updated_at) " +
             "VALUES (@date, @restaurantId, @isMain, @label, @now, @now); SELECT last_insert_rowid();",
             new { date = Key(date), restaurantId, isMain = isMain ? 1 : 0, label, now });
-    }
-
-    /// <summary>Меняет ресторан и снимает скрытие: чек снова виден.</summary>
-    public async Task SetRestaurantAsync(long id, long restaurantId)
-    {
-        using var conn = _factory.Open();
-        await conn.ExecuteAsync("UPDATE meals SET restaurant_id = @restaurantId, is_hidden = 0, updated_at = @now WHERE id = @id",
-            new { id, restaurantId, now = RestaurantRepository.Now() });
     }
 
     public async Task SetLabelAsync(long id, string? label)
@@ -183,6 +184,12 @@ public sealed class MealRepository
     {
         using var conn = _factory.Open();
         return await conn.QuerySingleOrDefaultAsync<MealParticipant>("SELECT * FROM meal_participants WHERE id = @id", new { id });
+    }
+
+    public async Task SetParticipantPaidAsync(long id, bool paid)
+    {
+        using var conn = _factory.Open();
+        await conn.ExecuteAsync("UPDATE meal_participants SET is_paid = @paid WHERE id = @id", new { id, paid = paid ? 1 : 0 });
     }
 
     public async Task DeleteParticipantAsync(long id)

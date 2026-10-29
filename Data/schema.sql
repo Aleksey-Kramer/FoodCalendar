@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS meals (
     created_at    TEXT    NOT NULL,
     updated_at    TEXT    NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS ux_meals_main ON meals(date) WHERE is_main = 1;
+-- одно видимое основное на день; скрытых (чеки убранных ресторанов) может быть несколько
+CREATE UNIQUE INDEX IF NOT EXISTS ux_meals_main ON meals(date) WHERE is_main = 1 AND is_hidden = 0;
 CREATE INDEX IF NOT EXISTS ix_meals_date ON meals(date);
 
 CREATE TABLE IF NOT EXISTS meal_participants (
@@ -47,7 +48,8 @@ CREATE TABLE IF NOT EXISTS meal_participants (
     meal_id    INTEGER NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
     person_id  INTEGER NULL REFERENCES people(id) ON DELETE SET NULL,
     name       TEXT    NOT NULL CHECK (length(trim(name)) > 0),
-    sort_order INTEGER NOT NULL DEFAULT 0
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_paid    INTEGER NOT NULL DEFAULT 0 CHECK (is_paid IN (0, 1)) -- оплатил / ожидает оплаты
 );
 CREATE INDEX IF NOT EXISTS ix_meal_participants_meal ON meal_participants(meal_id);
 

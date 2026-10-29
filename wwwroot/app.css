@@ -492,3 +492,18 @@ button.cal-cell:hover .cal-empty { color: var(--primary); }
 .seg__btn { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: .84rem; font-weight: 600; padding: 5px 12px; border-radius: 999px; cursor: pointer; transition: background .15s, color .15s; }
 .seg__btn--on { background: var(--surface); color: var(--primary-600); box-shadow: var(--shadow-sm); }
 .seg__btn:disabled { cursor: default; }
+
+/* ---- вход администратора и отметки оплаты ---- */
+.prefs__auth { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.badge--admin { background: var(--success-soft); color: var(--success); border-color: transparent; font-weight: 700; }
+.login { max-width: 420px; margin: 24px auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
+.login h1 { margin-top: 0; }
+.login__form .btn { margin-top: 4px; }
+.pay { display: inline-flex; align-items: center; gap: 4px; font-size: .74rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid transparent; font-family: inherit; white-space: nowrap; }
+.pay--paid { background: var(--success-soft); color: var(--success); }
+.pay--pending { background: var(--accent-soft); color: #92400e; }
+:root[data-theme="dark"] .pay--pending { color: var(--accent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pay--pending { color: var(--accent); } }
+button.pay { cursor: pointer; }
+button.pay:hover { filter: brightness(.95); }
+.readonly-note { margin: 0 0 12px; }

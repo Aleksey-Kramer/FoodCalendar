@@ -12,7 +12,7 @@
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" Lang="@_lang" />
+    <Routes @rendermode="InteractiveServer" Lang="@_lang" IsAdmin="@_isAdmin" />
     <script src="app.js"></script>
     <script src="dropzone.js"></script>
     <script src="_framework/blazor.web.js"></script>
@@ -23,9 +23,11 @@
 @code {
     // Язык и тема хранятся в cookie, чтобы уже предрендер шёл на нужном языке и без мигания темы.
     [CascadingParameter] public HttpContext? HttpContext { get; set; }
+    [Inject] public AdminAuth Auth { get; set; } = default!;
 
     private string _lang = "ru";
     private string? _theme;
+    private bool _isAdmin;
 
     protected override void OnInitialized()
     {
@@ -33,5 +35,7 @@
         _lang = I18n.Normalize(cookies?[I18n.CookieName]);
         var theme = cookies?["fc.theme"];
         _theme = theme is "light" or "dark" ? theme : null;
+        // cookie администратора проверяется подписью; параметры корневого компонента защищены Blazor от подмены
+        _isAdmin = Auth.IsValid(cookies?[AdminAuth.CookieName]);
     }
 }

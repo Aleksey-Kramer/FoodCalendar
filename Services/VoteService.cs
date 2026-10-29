@@ -130,7 +130,7 @@ public sealed class VoteService
         {
             var winner = winners[0];
             await _votes.CloseAsync(voteId, "finished", winner.RestaurantId);
-            await _meals.AssignMainAsync(DateOnly.ParseExact(vote.Date, "yyyy-MM-dd"), winner.RestaurantId);
+            await _meals.AssignMainFromVoteAsync(DateOnly.ParseExact(vote.Date, "yyyy-MM-dd"), winner.RestaurantId);
         }
         else
         {

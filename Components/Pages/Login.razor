@@ -1,0 +1,52 @@
+@page "/login"
+@inject I18n L
+@inject AdminSession Session
+@inject NavigationManager Nav
+
+<PageTitle>@L["auth.title"]</PageTitle>
+
+<div class="login">
+    <h1>@L["auth.title"]</h1>
+    <p class="muted">@L["auth.hint"]</p>
+
+    @if (Session.IsAdmin)
+    {
+        <p class="vote__result">✅ @L["auth.admin"]</p>
+        <form method="post" action="/auth/logout">
+            <button type="submit" class="btn">@L["auth.logout"]</button>
+        </form>
+    }
+    else
+    {
+        @if (_failed)
+        {
+            <div class="alert">@L["auth.failed"]</div>
+        }
+        @* Обычная HTML-форма: cookie выставляет минимальный API /login, затем страница перезагружается *@
+        <form method="post" action="/auth/login" class="login__form" autocomplete="on">
+            <input type="hidden" name="returnUrl" value="@_returnUrl" />
+            <label class="field">
+                <span class="field__label">@L["auth.user"]</span>
+                <input class="input" name="login" maxlength="60" autocomplete="username" required />
+            </label>
+            <label class="field">
+                <span class="field__label">@L["auth.password"]</span>
+                <input class="input" type="password" name="password" maxlength="200" autocomplete="current-password" required />
+            </label>
+            <button type="submit" class="btn btn--primary">@L["auth.login"]</button>
+        </form>
+    }
+</div>
+
+@code {
+    private bool _failed;
+    private string _returnUrl = "/";
+
+    protected override void OnInitialized()
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query);
+        _failed = query["failed"] == "1";
+        var ret = query["returnUrl"];
+        if (!string.IsNullOrEmpty(ret) && ret.StartsWith('/') && !ret.StartsWith("//")) _returnUrl = ret;
+    }
+}

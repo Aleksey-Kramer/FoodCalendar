@@ -27,11 +27,13 @@ public sealed class MealService
     private readonly PeopleService _people;
     private readonly ReceiptService _receipts;
     private readonly I18n _l;
+    private readonly AdminSession _admin;
 
     public MealService(MealRepository meals, RestaurantRepository restaurants, RestaurantItemRepository items,
-        PeopleService people, ReceiptService receipts, I18n? l = null)
+        PeopleService people, ReceiptService receipts, I18n? l = null, AdminSession? admin = null)
     {
         _l = l ?? new I18n();
+        _admin = admin ?? AdminSession.Trusted; // без DI (тесты, скрипты) проверок прав нет
         _meals = meals;
         _restaurants = restaurants;
         _items = items;
@@ -64,46 +66,93 @@ public sealed class MealService
             });
     }
 
-    /// <summary>Назначает основное блюдо дня (создаёт или меняет ресторан).</summary>
-    public async Task AssignMainAsync(DateOnly date, long restaurantId)
+    /// <summary>Назначает основное блюдо дня. Чек прежнего ресторана скрывается, чек нового (если был) возвращается.</summary>
+    public Task AssignMainAsync(DateOnly date, long restaurantId)
+    {
+        _admin.Require();
+        return AssignMainCoreAsync(date, restaurantId);
+    }
+
+    /// <summary>Итог голосования: основное ставится от имени системы, без прав администратора.</summary>
+    internal Task AssignMainFromVoteAsync(DateOnly date, long restaurantId) => AssignMainCoreAsync(date, restaurantId);
+
+    private async Task AssignMainCoreAsync(DateOnly date, long restaurantId)
     {
         EnsureWorkday(date);
         await EnsureActiveRestaurantAsync(restaurantId);
-        // скрытое основное (ресторан убирали) восстанавливается вместе с чеком
-        var main = await _meals.GetMainAnyAsync(date);
-        if (main is null)
-            await _meals.InsertAsync(date, restaurantId, isMain: true, label: null);
-        else
-            await _meals.SetRestaurantAsync(main.Id, restaurantId);
+        var main = (await GetDayAsync(date)).Main;
+        if (main?.RestaurantId == restaurantId) return;
+        if (main is not null) await HideOrDeleteAsync(main);
+        await ShowAsync(date, restaurantId, isMain: true, label: null);
     }
 
-    /// <summary>Убирает основное блюдо. Заполненный чек не удаляется, а скрывается до повторного выбора ресторана.</summary>
+    /// <summary>Убирает основное блюдо. Заполненный чек не удаляется, а скрывается: вернётся, когда этот ресторан снова выберут в этот день.</summary>
     public async Task ClearMainAsync(DateOnly date)
     {
+        _admin.Require();
         var main = (await GetDayAsync(date)).Main;
-        if (main is null) return;
-        if (main.HasReceiptData)
-            await _meals.SetHiddenAsync(main.Id, true);
-        else
-            await DeleteMealAsync(main.Id);
+        if (main is not null) await HideOrDeleteAsync(main);
     }
 
     public async Task<long> AddExtraAsync(DateOnly date, long restaurantId, string? label)
     {
+        _admin.Require();
         EnsureWorkday(date);
         await EnsureActiveRestaurantAsync(restaurantId);
-        return await _meals.InsertAsync(date, restaurantId, isMain: false, label: NormalizeLabel(label));
+        return await ShowAsync(date, restaurantId, isMain: false, label: NormalizeLabel(label));
     }
 
+    /// <summary>Смена ресторана у приёма: чек старого ресторана скрывается, у нового — возвращается его собственный чек или создаётся пустой.</summary>
     public async Task ChangeRestaurantAsync(long mealId, long restaurantId)
     {
+        _admin.Require();
         await EnsureActiveRestaurantAsync(restaurantId);
-        await _meals.SetRestaurantAsync(mealId, restaurantId);
+        var meal = await GetFullAsync(mealId);
+        if (meal.RestaurantId == restaurantId) return;
+        await HideOrDeleteAsync(meal);
+        await ShowAsync(meal.DateValue, restaurantId, meal.IsMain, meal.Label);
     }
 
-    public Task SetLabelAsync(long mealId, string? label) => _meals.SetLabelAsync(mealId, NormalizeLabel(label));
+    /// <summary>Приём с данными чека скрывается (чек сохраняется за рестораном в этом дне), пустой — удаляется.</summary>
+    private async Task HideOrDeleteAsync(Meal meal)
+    {
+        if (meal.HasReceiptData)
+            await _meals.SetHiddenAsync(meal.Id, true);
+        else
+            await DeleteCoreAsync(meal.Id);
+    }
 
-    public async Task DeleteMealAsync(long mealId)
+    /// <summary>Показывает ресторан в дне в нужной роли: возвращает его скрытый чек или создаёт новый приём.</summary>
+    private async Task<long> ShowAsync(DateOnly date, long restaurantId, bool isMain, string? label)
+    {
+        var hidden = await _meals.FindHiddenAsync(date, restaurantId);
+        if (hidden is null)
+            return await _meals.InsertAsync(date, restaurantId, isMain, label);
+        await _meals.RestoreAsync(hidden.Id, isMain, label);
+        return hidden.Id;
+    }
+
+    /// <summary>Приём с участниками, позициями и сборами.</summary>
+    private async Task<Meal> GetFullAsync(long mealId)
+    {
+        var brief = await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("err.mealNotFound");
+        return (await _meals.GetDayAsync(brief.DateValue)).FirstOrDefault(m => m.Id == mealId)
+            ?? throw new ValidationException("err.mealNotFound");
+    }
+
+    public Task SetLabelAsync(long mealId, string? label)
+    {
+        _admin.Require();
+        return _meals.SetLabelAsync(mealId, NormalizeLabel(label));
+    }
+
+    public Task DeleteMealAsync(long mealId)
+    {
+        _admin.Require();
+        return DeleteCoreAsync(mealId);
+    }
+
+    private async Task DeleteCoreAsync(long mealId)
     {
         var meal = await _meals.GetByIdAsync(mealId);
         if (meal is null) return;
@@ -113,12 +162,14 @@ public sealed class MealService
 
     public Task SetTotalAsync(long mealId, decimal? total)
     {
+        _admin.Require();
         if (total is < 0) throw new ValidationException("err.amountNegative");
         return _meals.SetTotalAsync(mealId, total);
     }
 
     public async Task AttachReceiptAsync(long mealId, IBrowserFile file)
     {
+        _admin.Require();
         var meal = await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("err.mealNotFound");
         var fileName = await _receipts.SaveAsync(file);
         await _meals.SetReceiptAsync(mealId, fileName);
@@ -127,6 +178,7 @@ public sealed class MealService
 
     public async Task RemoveReceiptAsync(long mealId)
     {
+        _admin.Require();
         var meal = await _meals.GetByIdAsync(mealId);
         if (meal is null) return;
         await _meals.SetReceiptAsync(mealId, null);
@@ -138,19 +190,33 @@ public sealed class MealService
     /// <summary>Добавляет участника по имени; при saveToList имя попадает в справочник людей.</summary>
     public async Task<long> AddParticipantAsync(long mealId, string rawName, bool saveToList)
     {
+        _admin.Require();
         var name = PeopleService.NormalizeName(rawName);
         var meal = await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("err.mealNotFound");
         var person = saveToList ? await _people.GetOrCreateAsync(name) : await _people.FindAsync(name);
         return await _meals.AddParticipantAsync(meal.Id, person?.Id, person?.Name ?? name);
     }
 
-    public Task RemoveParticipantAsync(long participantId) => _meals.DeleteParticipantAsync(participantId);
+    public Task RemoveParticipantAsync(long participantId)
+    {
+        _admin.Require();
+        return _meals.DeleteParticipantAsync(participantId);
+    }
+
+    /// <summary>Отметка «оплатил» / «ожидает оплаты» у участника.</summary>
+    public async Task SetParticipantPaidAsync(long participantId, bool paid)
+    {
+        _admin.Require();
+        _ = await _meals.GetParticipantAsync(participantId) ?? throw new ValidationException("err.participantNotFound");
+        await _meals.SetParticipantPaidAsync(participantId, paid);
+    }
 
     // ---- позиции ----
 
     /// <summary>Добавляет позицию участнику; при saveToMenu позиция с ценой сохраняется в меню ресторана.</summary>
     public async Task<long> AddItemAsync(long participantId, string rawName, decimal? price, int qty, bool saveToMenu)
     {
+        _admin.Require();
         var name = NormalizeItemName(rawName);
         ValidatePriceQty(price, qty);
         var participant = await _meals.GetParticipantAsync(participantId)
@@ -165,12 +231,17 @@ public sealed class MealService
 
     public Task UpdateItemAsync(long itemId, string rawName, decimal? price, int qty)
     {
+        _admin.Require();
         var name = NormalizeItemName(rawName);
         ValidatePriceQty(price, qty);
         return _meals.UpdateItemAsync(itemId, name, price, qty);
     }
 
-    public Task RemoveItemAsync(long itemId) => _meals.DeleteItemAsync(itemId);
+    public Task RemoveItemAsync(long itemId)
+    {
+        _admin.Require();
+        return _meals.DeleteItemAsync(itemId);
+    }
 
     // ---- общие позиции и сборы ----
 
@@ -183,6 +254,7 @@ public sealed class MealService
 
     public async Task SetModeAsync(long mealId, string mode)
     {
+        _admin.Require();
         if (!Modes.Contains(mode)) throw new ValidationException("err.sharedKind");
         _ = await _meals.GetByIdAsync(mealId) ?? throw new ValidationException("err.mealNotFound");
         await _meals.SetModeAsync(mealId, mode);
@@ -195,6 +267,7 @@ public sealed class MealService
     /// <summary>Добавляет общую позицию или сбор. Общая позиция (kind = item) при saveToMenu сохраняется в меню ресторана с ценой за штуку.</summary>
     public async Task<long> AddSharedItemAsync(long mealId, string rawName, string kind, decimal? price, int qty, bool splitAll, IReadOnlyCollection<long> participantIds, bool saveToMenu = false)
     {
+        _admin.Require();
         var name = NormalizeItemName(rawName);
         ValidatePriceQty(price, qty);
         if (!SharedKinds.Contains(kind))
@@ -213,7 +286,11 @@ public sealed class MealService
         return await _meals.AddSharedItemAsync(mealId, name, kind, price, qty, splitAll, participantIds);
     }
 
-    public Task RemoveSharedItemAsync(long id) => _meals.DeleteSharedItemAsync(id);
+    public Task RemoveSharedItemAsync(long id)
+    {
+        _admin.Require();
+        return _meals.DeleteSharedItemAsync(id);
+    }
 
     // ---- вспомогательное ----
 

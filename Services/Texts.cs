@@ -190,6 +190,21 @@ public static class Texts
         Add("vote.pWaiting", "Ещё не голосовал(а)", "Hasn’t voted yet", "Hali ovoz bermadi");
 
         // ---- сообщения сервисов ----
+        // ---- оплата и администратор ----
+        Add("pay.paid", "Оплатил", "Paid", "To‘ladi");
+        Add("pay.pending", "Ожидает оплаты", "Awaiting payment", "To‘lov kutilmoqda");
+        Add("pay.toggle", "Нажмите, чтобы изменить статус оплаты", "Click to change the payment status", "To‘lov holatini o‘zgartirish uchun bosing");
+        Add("auth.login", "Войти", "Log in", "Kirish");
+        Add("auth.logout", "Выйти", "Log out", "Chiqish");
+        Add("auth.admin", "Админ", "Admin", "Admin");
+        Add("auth.title", "Вход для администратора", "Administrator login", "Administrator kirishi");
+        Add("auth.hint", "Вход нужен только для изменения дней, чеков и оплат. Остальное доступно всем.", "Login is only needed to edit days, receipts and payments. Everything else is open to everyone.", "Kirish faqat kunlar, cheklar va to‘lovlarni o‘zgartirish uchun kerak. Qolgani hammaga ochiq.");
+        Add("auth.user", "Логин", "Login", "Login");
+        Add("auth.password", "Пароль", "Password", "Parol");
+        Add("auth.failed", "Неверный логин или пароль.", "Wrong login or password.", "Login yoki parol noto‘g‘ri.");
+        Add("auth.readOnly", "Изменять дни, чеки и оплаты может только администратор.", "Only the administrator can edit days, receipts and payments.", "Kunlar, cheklar va to‘lovlarni faqat administrator o‘zgartira oladi.");
+        Add("err.adminOnly", "Только администратор может это менять. Войдите.", "Only the administrator can change this. Please log in.", "Buni faqat administrator o‘zgartira oladi. Kiring.");
+
         Add("err.imageType", "Допустимы только изображения JPEG, PNG, WebP или SVG.", "Only JPEG, PNG, WebP or SVG images are allowed.", "Faqat JPEG, PNG, WebP yoki SVG rasmlar qabul qilinadi.");
         Add("err.fileTooBig2", "Файл больше 2 МБ.", "File is larger than 2 MB.", "Fayl 2 MB dan katta.");
         Add("err.fileEmpty", "Файл пустой.", "File is empty.", "Fayl bo‘sh.");
