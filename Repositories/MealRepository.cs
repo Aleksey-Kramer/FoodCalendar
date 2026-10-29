@@ -7,7 +7,7 @@ namespace FoodCalendar.Repositories;
 public sealed class MealRepository
 {
     private const string SelectSql =
-        "SELECT m.id, m.date, m.restaurant_id, m.is_main, m.label, m.receipt_file, m.total_amount, m.updated_at, " +
+        "SELECT m.id, m.date, m.restaurant_id, m.is_main, m.is_hidden, m.label, m.receipt_file, m.total_amount, m.updated_at, " +
         "       r.name AS restaurant_name, r.image_file AS image_file, r.is_active AS is_active " +
         "FROM meals m JOIN restaurants r ON r.id = m.restaurant_id ";
 
@@ -22,7 +22,7 @@ public sealed class MealRepository
     {
         using var conn = _factory.Open();
         return (await conn.QueryAsync<Meal>(
-            SelectSql + "WHERE m.is_main = 1 AND m.date BETWEEN @from AND @to ORDER BY m.date",
+            SelectSql + "WHERE m.is_main = 1 AND m.is_hidden = 0 AND m.date BETWEEN @from AND @to ORDER BY m.date",
             new { from = Key(from), to = Key(to) })).ToList();
     }
 
@@ -32,7 +32,7 @@ public sealed class MealRepository
         using var conn = _factory.Open();
         var rows = await conn.QueryAsync<(string Date, long Extras, long Receipts)>(
             "SELECT date, SUM(CASE WHEN is_main = 0 THEN 1 ELSE 0 END), SUM(CASE WHEN receipt_file IS NOT NULL THEN 1 ELSE 0 END) " +
-            "FROM meals WHERE date BETWEEN @from AND @to GROUP BY date",
+            "FROM meals WHERE is_hidden = 0 AND date BETWEEN @from AND @to GROUP BY date",
             new { from = Key(from), to = Key(to) });
         return rows.ToDictionary(r => r.Date, r => ((int)r.Extras, r.Receipts > 0));
     }
@@ -45,7 +45,7 @@ public sealed class MealRepository
     {
         using var conn = _factory.Open();
         var meals = (await conn.QueryAsync<Meal>(
-            SelectSql + "WHERE m.date BETWEEN @from AND @to ORDER BY m.date, m.is_main DESC, m.id",
+            SelectSql + "WHERE m.is_hidden = 0 AND m.date BETWEEN @from AND @to ORDER BY m.date, m.is_main DESC, m.id",
             new { from = Key(from), to = Key(to) })).ToList();
         if (meals.Count == 0) return meals;
 
@@ -84,11 +84,28 @@ public sealed class MealRepository
         return await conn.QuerySingleOrDefaultAsync<Meal>(SelectSql + "WHERE m.id = @id", new { id });
     }
 
+    /// <summary>Видимое основное блюдо дня.</summary>
     public async Task<Meal?> GetMainAsync(DateOnly date)
     {
         using var conn = _factory.Open();
         return await conn.QuerySingleOrDefaultAsync<Meal>(
+            SelectSql + "WHERE m.date = @date AND m.is_main = 1 AND m.is_hidden = 0", new { date = Key(date) });
+    }
+
+    /// <summary>Основное блюдо дня, включая скрытое (ресторан убран, чек сохранён).</summary>
+    public async Task<Meal?> GetMainAnyAsync(DateOnly date)
+    {
+        using var conn = _factory.Open();
+        return await conn.QuerySingleOrDefaultAsync<Meal>(
             SelectSql + "WHERE m.date = @date AND m.is_main = 1", new { date = Key(date) });
+    }
+
+    /// <summary>Скрывает основное блюдо: ресторан убран, чек и участники остаются.</summary>
+    public async Task SetHiddenAsync(long id, bool hidden)
+    {
+        using var conn = _factory.Open();
+        await conn.ExecuteAsync("UPDATE meals SET is_hidden = @hidden, updated_at = @now WHERE id = @id",
+            new { id, hidden = hidden ? 1 : 0, now = RestaurantRepository.Now() });
     }
 
     public async Task<long> InsertAsync(DateOnly date, long restaurantId, bool isMain, string? label)
@@ -101,10 +118,11 @@ public sealed class MealRepository
             new { date = Key(date), restaurantId, isMain = isMain ? 1 : 0, label, now });
     }
 
+    /// <summary>Меняет ресторан и снимает скрытие: чек снова виден.</summary>
     public async Task SetRestaurantAsync(long id, long restaurantId)
     {
         using var conn = _factory.Open();
-        await conn.ExecuteAsync("UPDATE meals SET restaurant_id = @restaurantId, updated_at = @now WHERE id = @id",
+        await conn.ExecuteAsync("UPDATE meals SET restaurant_id = @restaurantId, is_hidden = 0, updated_at = @now WHERE id = @id",
             new { id, restaurantId, now = RestaurantRepository.Now() });
     }
 

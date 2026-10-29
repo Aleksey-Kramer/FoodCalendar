@@ -106,6 +106,14 @@ public sealed class DbInitializer
     private void Migrate()
     {
         using var conn = _factory.Open();
+        // meals.is_hidden: ресторан убран из дня, чек сохранён и скрыт до повторного выбора
+        var hasHidden = conn.Query<string>("SELECT name FROM pragma_table_info('meals')").Contains("is_hidden");
+        if (!hasHidden)
+        {
+            conn.Execute("ALTER TABLE meals ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0 CHECK (is_hidden IN (0, 1))");
+            _logger.LogInformation("Миграция: добавлена колонка meals.is_hidden");
+        }
+
         var hasOld = conn.ExecuteScalar<long>(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'day_assignments'") > 0;
         if (!hasOld) return;

@@ -20,7 +20,9 @@
             @if (_confirmDelete)
             {
                 <span class="confirm">
-                    Удалить вместе с чеком и участниками?
+                    @(Meal.IsMain && Meal.HasReceiptData
+                        ? "Убрать ресторан? Чек сохранится и появится снова при выборе ресторана."
+                        : Meal.IsMain ? "Убрать ресторан?" : "Удалить вместе с чеком и участниками?")
                     <button type="button" class="btn btn--sm btn--danger" @onclick="() => OnDelete.InvokeAsync(Meal)">Да</button>
                     <button type="button" class="btn btn--sm" @onclick="() => _confirmDelete = false">Нет</button>
                 </span>
@@ -178,11 +180,20 @@
             }
         </div>
         <form class="inline-form inline-form--wrap" data-arrow-nav @onsubmit="AddShared" @onsubmit:preventDefault="true" style="margin-top:8px">
-            <input class="input input--grow" @bind="_shared.Name" maxlength="100" placeholder="@(_shared.Kind == "item" ? "Соус, упаковка, пакет…" : KindTitle(_shared.Kind))" />
-            <MoneyInput @bind-Value="_shared.Price" Placeholder="Сумма" />
             @if (_shared.Kind == "item")
             {
+                <input class="input input--grow" list="menu-@Meal.Id" @bind="_shared.Name" @bind:event="oninput" @bind:after="AutoPriceShared" maxlength="100" placeholder="Соус, упаковка, пакет…" />
+                <MoneyInput @bind-Value="_shared.Price" Placeholder="Цена" />
                 <input class="input input--qty" type="number" min="1" max="99" @bind="_shared.Qty" title="Количество" />
+                @if (FindMenuItem(_shared.Name) is null)
+                {
+                    <label class="check small" title="Сохранить позицию и цену в меню ресторана"><input type="checkbox" @bind="_shared.SaveToMenu" /> в меню</label>
+                }
+            }
+            else
+            {
+                <input class="input input--grow" @bind="_shared.Name" maxlength="100" placeholder="@KindTitle(_shared.Kind)" />
+                <MoneyInput @bind-Value="_shared.Price" Placeholder="Сумма" />
             }
             <button type="submit" class="btn btn--sm" disabled="@_busy">+ Добавить</button>
         </form>
@@ -332,7 +343,13 @@
         public decimal? Price { get; set; }
         public int Qty { get; set; } = 1;
         public bool SplitAll { get; set; } = true;
+        public bool SaveToMenu { get; set; } = true;
         public HashSet<long> ParticipantIds { get; } = new();
+    }
+
+    private void AutoPriceShared()
+    {
+        if (FindMenuItem(_shared.Name)?.Price is { } price) _shared.Price = price;
     }
 
     private SharedDraft _shared = new();
@@ -368,7 +385,10 @@
 
     private Task AddShared() => Run(async () =>
     {
-        await Meals.AddSharedItemAsync(Meal.Id, _shared.Name, _shared.Kind, _shared.Price, _shared.Qty, _shared.SplitAll, _shared.ParticipantIds.ToList());
+        // известная позиция меню не перезаписывается (галочка скрыта), как и у личных позиций
+        var saveToMenu = _shared.Kind == "item" && _shared.SaveToMenu && FindMenuItem(_shared.Name) is null;
+        await Meals.AddSharedItemAsync(Meal.Id, _shared.Name, _shared.Kind, _shared.Price, _shared.Qty, _shared.SplitAll, _shared.ParticipantIds.ToList(), saveToMenu);
+        if (saveToMenu) _menu = await RestaurantSvc.GetItemsAsync(Meal.RestaurantId);
         _shared = new SharedDraft();
     });
 

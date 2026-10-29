@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS meals (
     date          TEXT    NOT NULL CHECK (date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
     restaurant_id INTEGER NOT NULL REFERENCES restaurants(id),
     is_main       INTEGER NOT NULL DEFAULT 0 CHECK (is_main IN (0, 1)),
+    is_hidden     INTEGER NOT NULL DEFAULT 0 CHECK (is_hidden IN (0, 1)), -- ресторан убран, чек сохранён и скрыт
     label         TEXT    NULL,
     receipt_file  TEXT    NULL,
     total_amount  REAL    NULL,

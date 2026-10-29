@@ -8,6 +8,8 @@ public sealed class Meal
     public string Date { get; set; } = "";
     public long RestaurantId { get; set; }
     public bool IsMain { get; set; }
+    /// <summary>Ресторан убран из дня: чек сохранён, но не показывается, пока ресторан не выберут снова.</summary>
+    public bool IsHidden { get; set; }
     /// <summary>Метка дополнительного приёма: «Завтрак», «Перекус», «Кофе» и т.п.</summary>
     public string? Label { get; set; }
     public string? ReceiptFile { get; set; }

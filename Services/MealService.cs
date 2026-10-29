@@ -66,18 +66,23 @@ public sealed class MealService
     {
         EnsureWorkday(date);
         await EnsureActiveRestaurantAsync(restaurantId);
-        var main = await _meals.GetMainAsync(date);
+        // скрытое основное (ресторан убирали) восстанавливается вместе с чеком
+        var main = await _meals.GetMainAnyAsync(date);
         if (main is null)
             await _meals.InsertAsync(date, restaurantId, isMain: true, label: null);
         else
             await _meals.SetRestaurantAsync(main.Id, restaurantId);
     }
 
-    /// <summary>Убирает основное блюдо вместе с участниками, позициями и чеком.</summary>
+    /// <summary>Убирает основное блюдо. Заполненный чек не удаляется, а скрывается до повторного выбора ресторана.</summary>
     public async Task ClearMainAsync(DateOnly date)
     {
-        var main = await _meals.GetMainAsync(date);
-        if (main is not null) await DeleteMealAsync(main.Id);
+        var main = (await GetDayAsync(date)).Main;
+        if (main is null) return;
+        if (main.HasReceiptData)
+            await _meals.SetHiddenAsync(main.Id, true);
+        else
+            await DeleteMealAsync(main.Id);
     }
 
     public async Task<long> AddExtraAsync(DateOnly date, long restaurantId, string? label)
@@ -174,7 +179,8 @@ public sealed class MealService
     };
 
     /// <summary>Общая позиция или сбор; делится на всех (splitAll) или на выбранных участников.</summary>
-    public async Task<long> AddSharedItemAsync(long mealId, string rawName, string kind, decimal? price, int qty, bool splitAll, IReadOnlyCollection<long> participantIds)
+    /// <summary>Добавляет общую позицию или сбор. Общая позиция (kind = item) при saveToMenu сохраняется в меню ресторана с ценой за штуку.</summary>
+    public async Task<long> AddSharedItemAsync(long mealId, string rawName, string kind, decimal? price, int qty, bool splitAll, IReadOnlyCollection<long> participantIds, bool saveToMenu = false)
     {
         var name = NormalizeItemName(rawName);
         ValidatePriceQty(price, qty);
@@ -189,6 +195,8 @@ public sealed class MealService
                 throw new ValidationException("Выберите хотя бы одного участника или делите на всех.");
             participantIds = valid;
         }
+        if (saveToMenu && kind == "item")
+            await _items.UpsertAsync(meal.RestaurantId, name, price);
         return await _meals.AddSharedItemAsync(mealId, name, kind, price, qty, splitAll, participantIds);
     }
 
