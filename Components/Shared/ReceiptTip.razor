@@ -8,7 +8,7 @@
             {
                 @foreach (var i in p.Items)
                 {
-                    <tr @key="i.Id">
+                    <tr @key="('i', i.Id)">
                         <td>@i.Name</td>
                         <td class="num">@(i.Qty > 1 ? $"× {i.Qty}" : "")</td>
                         <td class="num">@Money.Format((i.Price ?? 0) * i.Qty)</td>
@@ -17,7 +17,7 @@
             }
             @foreach (var s in Meal.SharedItems)
             {
-                <tr @key="s.Id">
+                <tr @key="('s', s.Id)">
                     <td>@s.Name <span class="muted">· общее</span></td>
                     <td class="num">@(s.Qty > 1 ? $"× {s.Qty}" : "")</td>
                     <td class="num">@Money.Format(s.Amount)</td>

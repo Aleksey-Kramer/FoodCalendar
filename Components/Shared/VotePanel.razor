@@ -24,7 +24,7 @@
 
         @foreach (var f in _board.Finished.Where(f => _board.Open.All(o => o.Date != f.Date)))
         {
-            <p class="vote__result" @key="f.Id">
+            <p class="vote__result" @key="('f', f.Id)">
                 🏆 @(f.DateValue == CalendarService.Today ? "Сегодня" : CalendarService.FormatLong(f.DateValue)): победил <b>@f.WinnerName</b> (раунд @f.Round), ресторан добавлен в календарь.
             </p>
         }
