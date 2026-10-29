@@ -78,59 +78,6 @@
                     <span class="muted"> · разница с чеком: @Money.Format(t - Meal.ItemsTotal)</span>
                 }
             </div>
-
-            <div class="shared">
-                <div class="shared__head">
-                    <span class="field__label" style="margin:0">Общие позиции и сборы</span>
-                    <span class="shared__sum">@Money.Format(Meal.SharedTotal)</span>
-                </div>
-                @if (Meal.SharedItems.Count > 0)
-                {
-                    <table class="items">
-                        <tbody>
-                        @foreach (var s in Meal.SharedItems)
-                        {
-                            <tr @key="s.Id">
-                                <td class="items__name">
-                                    @s.Name
-                                    <div class="shared__split">@KindTitle(s.Kind) · @SplitText(s)</div>
-                                </td>
-                                <td class="items__num">@(s.Qty > 1 ? $"{Money.Format(s.Price)} × {s.Qty}" : "")</td>
-                                <td class="items__num"><b>@Money.Format(s.Amount)</b></td>
-                                <td class="items__act"><button type="button" class="btn btn--icon btn--xs" title="Удалить" @onclick="() => RemoveShared(s.Id)">✕</button></td>
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
-                }
-                <div class="quick">
-                    @foreach (var (kind, title) in MealService.SharedKinds)
-                    {
-                        <button type="button" class="btn btn--sm @(_shared.Kind == kind ? "btn--primary" : "")" @onclick="() => PickKind(kind, title)">@title</button>
-                    }
-                </div>
-                <form class="inline-form inline-form--wrap" @onsubmit="AddShared" @onsubmit:preventDefault="true" style="margin-top:8px">
-                    <input class="input input--grow" @bind="_shared.Name" maxlength="100" placeholder="@(_shared.Kind == "item" ? "Соус, упаковка, пакет…" : KindTitle(_shared.Kind))" />
-                    <input class="input input--num" type="number" step="0.01" min="0" @bind="_shared.Price" placeholder="Сумма" />
-                    @if (_shared.Kind == "item")
-                    {
-                        <input class="input input--qty" type="number" min="1" max="99" @bind="_shared.Qty" title="Количество" />
-                    }
-                    <button type="submit" class="btn btn--sm" disabled="@_busy">+ Добавить</button>
-                </form>
-                <div class="split-pick">
-                    <label class="check small"><input type="radio" name="split-@Meal.Id" checked="@_shared.SplitAll" @onchange="() => _shared.SplitAll = true" /> на всех</label>
-                    <label class="check small"><input type="radio" name="split-@Meal.Id" checked="@(!_shared.SplitAll)" @onchange="() => _shared.SplitAll = false" /> на выбранных:</label>
-                    @if (!_shared.SplitAll)
-                    {
-                        @foreach (var p in Meal.Participants)
-                        {
-                            var on = _shared.ParticipantIds.Contains(p.Id);
-                            <label class="check small"><input type="checkbox" checked="@on" @onchange="e => ToggleSharedParticipant(p.Id, e.Value is true)" /> @p.Name</label>
-                        }
-                    }
-                </div>
-            </div>
         </div>
 
         <div class="meal__people">
@@ -184,6 +131,59 @@
                 <label class="check small"><input type="checkbox" @bind="_saveToList" /> сохранить в список</label>
                 <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">+ Участник</button>
             </form>
+        </div>
+    </div>
+
+    <div class="shared">
+        <div class="shared__head">
+            <span class="field__label" style="margin:0">Общие позиции и сборы</span>
+            <span class="shared__sum">@Money.Format(Meal.SharedTotal)</span>
+        </div>
+        @if (Meal.SharedItems.Count > 0)
+        {
+            <table class="items">
+                <tbody>
+                @foreach (var s in Meal.SharedItems)
+                {
+                    <tr @key="s.Id">
+                        <td class="items__name">
+                            @s.Name
+                            <div class="shared__split">@KindTitle(s.Kind) · @SplitText(s)</div>
+                        </td>
+                        <td class="items__num">@(s.Qty > 1 ? $"{Money.Format(s.Price)} × {s.Qty}" : "")</td>
+                        <td class="items__num"><b>@Money.Format(s.Amount)</b></td>
+                        <td class="items__act"><button type="button" class="btn btn--icon btn--xs" title="Удалить" @onclick="() => RemoveShared(s.Id)">✕</button></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+        <div class="quick">
+            @foreach (var (kind, title) in MealService.SharedKinds)
+            {
+                <button type="button" class="btn btn--sm @(_shared.Kind == kind ? "btn--primary" : "")" @onclick="() => PickKind(kind, title)">@title</button>
+            }
+        </div>
+        <form class="inline-form inline-form--wrap" @onsubmit="AddShared" @onsubmit:preventDefault="true" style="margin-top:8px">
+            <input class="input input--grow" @bind="_shared.Name" maxlength="100" placeholder="@(_shared.Kind == "item" ? "Соус, упаковка, пакет…" : KindTitle(_shared.Kind))" />
+            <input class="input input--num" type="number" step="0.01" min="0" @bind="_shared.Price" placeholder="Сумма" />
+            @if (_shared.Kind == "item")
+            {
+                <input class="input input--qty" type="number" min="1" max="99" @bind="_shared.Qty" title="Количество" />
+            }
+            <button type="submit" class="btn btn--sm" disabled="@_busy">+ Добавить</button>
+        </form>
+        <div class="split-pick">
+            <label class="check small"><input type="radio" name="split-@Meal.Id" checked="@_shared.SplitAll" @onchange="() => _shared.SplitAll = true" /> на всех</label>
+            <label class="check small"><input type="radio" name="split-@Meal.Id" checked="@(!_shared.SplitAll)" @onchange="() => _shared.SplitAll = false" /> на выбранных:</label>
+            @if (!_shared.SplitAll)
+            {
+                @foreach (var p in Meal.Participants)
+                {
+                    var on = _shared.ParticipantIds.Contains(p.Id);
+                    <label class="check small"><input type="checkbox" checked="@on" @onchange="e => ToggleSharedParticipant(p.Id, e.Value is true)" /> @p.Name</label>
+                }
+            }
         </div>
     </div>
 
