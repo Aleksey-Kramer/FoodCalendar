@@ -1,0 +1,22 @@
+@inherits LayoutComponentBase
+
+<header class="topbar">
+    <div class="container topbar__inner">
+        <a class="brand" href="/">🍽 Календарь еды</a>
+        <nav class="nav">
+            <NavLink class="nav__link" href="/" Match="NavLinkMatch.All">Календарь</NavLink>
+            <NavLink class="nav__link" href="/restaurants">Рестораны</NavLink>
+            <NavLink class="nav__link" href="/people">Люди</NavLink>
+        </nav>
+    </div>
+</header>
+
+<main class="container page">
+    @Body
+</main>
+
+<div id="blazor-error-ui">
+    Произошла непредвиденная ошибка.
+    <a href="" class="reload">Перезагрузить</a>
+    <a class="dismiss">🗙</a>
+</div>

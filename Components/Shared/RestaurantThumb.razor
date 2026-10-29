@@ -1,0 +1,39 @@
+@* Картинка ресторана или CSS-плейсхолдер с инициалами на цветном фоне *@
+@if (!string.IsNullOrEmpty(ImageFile))
+{
+    <img class="thumb @CssClass" src="@ImageService.Url(ImageFile)" alt="@Name" loading="lazy" />
+}
+else
+{
+    <div class="thumb thumb--ph ph-@ColorIndex @CssClass" title="@Name" aria-label="@Name">@Initials</div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    [Parameter] public string? ImageFile { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+
+    private string Initials
+    {
+        get
+        {
+            var letters = Name
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(p => char.IsLetterOrDigit(p[0]))
+                .Take(2)
+                .Select(p => char.ToUpperInvariant(p[0]));
+            var s = string.Concat(letters);
+            return s.Length == 0 ? "?" : s;
+        }
+    }
+
+    private int ColorIndex
+    {
+        get
+        {
+            var h = 17;
+            foreach (var c in Name) h = (h * 31 + c) & 0x7fffffff;
+            return h % 8;
+        }
+    }
+}

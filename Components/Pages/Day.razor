@@ -1,0 +1,240 @@
+@page "/day/{DateKey}"
+@inject MealService Meals
+@inject RestaurantService RestaurantSvc
+@inject PeopleService PeopleSvc
+@inject NavigationManager Nav
+
+<PageTitle>@(_date is { } d0 ? CalendarService.FormatLong(d0) : "День")</PageTitle>
+
+@if (_date is not { } date)
+{
+    <div class="alert">Неверная дата. <a href="/">К календарю</a></div>
+}
+else
+{
+    <div class="day-head">
+        <a class="btn" href="/">← Календарь</a>
+        <div class="cal-nav">
+            <button type="button" class="btn btn--icon" @onclick="() => Shift(-1)" title="Предыдущий день">‹</button>
+            <h1 class="day-title">@CalendarService.FormatFull(date)</h1>
+            <button type="button" class="btn btn--icon" @onclick="() => Shift(1)" title="Следующий день">›</button>
+        </div>
+    </div>
+
+    @if (CalendarService.IsWeekend(date))
+    {
+        <p class="alert">Выходной: на этот день еду не заказываем.</p>
+    }
+    else if (_day is null)
+    {
+        <p class="muted">Загрузка…</p>
+    }
+    else
+    {
+        @if (_error is not null)
+        {
+            <div class="alert">@_error</div>
+        }
+
+        <section class="section">
+            <div class="section__head">
+                <h2>Основное блюдо</h2>
+            </div>
+            @if (_day.Main is { } main)
+            {
+                <MealPanel Meal="main" People="_people" OnChanged="ReloadAsync"
+                           OnChangeRestaurant="m => OpenPicker(m)" OnDelete="m => DeleteMeal(m)" />
+            }
+            else
+            {
+                <button type="button" class="btn btn--primary" @onclick="() => OpenPicker(null)">Выбрать ресторан</button>
+            }
+        </section>
+
+        <section class="section">
+            <div class="section__head">
+                <h2>Дополнительно <span class="muted small">завтрак, перекус, кофе…</span></h2>
+                <button type="button" class="btn btn--sm" @onclick="() => _addExtra = !_addExtra">+ Добавить</button>
+            </div>
+
+            @if (_addExtra)
+            {
+                <form class="inline-form inline-form--wrap" @onsubmit="AddExtra" @onsubmit:preventDefault="true">
+                    <input class="input input--w" list="label-list" @bind="_extraLabel" maxlength="40" placeholder="Метка: завтрак, перекус…" />
+                    <datalist id="label-list">
+                        @foreach (var s in MealService.LabelSuggestions) { <option value="@s" /> }
+                    </datalist>
+                    <select class="input input--w" @bind="_extraRestaurantId">
+                        <option value="">Ресторан…</option>
+                        @foreach (var r in _active) { <option value="@r.Id">@r.Name</option> }
+                    </select>
+                    <button type="submit" class="btn btn--primary" disabled="@_busy">Добавить</button>
+                    <button type="button" class="btn" @onclick="() => _addExtra = false">Отмена</button>
+                </form>
+            }
+
+            @if (_day.Extras.Count == 0 && !_addExtra)
+            {
+                <p class="muted">Дополнительных приёмов нет.</p>
+            }
+            @foreach (var extra in _day.Extras)
+            {
+                <MealPanel @key="extra.Id" Meal="extra" People="_people" OnChanged="ReloadAsync"
+                           OnChangeRestaurant="m => OpenPicker(m)" OnDelete="m => DeleteMeal(m)" />
+            }
+        </section>
+
+        <datalist id="people-list">
+            @foreach (var p in _people) { <option value="@p.Name" /> }
+        </datalist>
+    }
+
+    @if (_pickerOpen)
+    {
+        <div class="modal-backdrop" @onclick="ClosePicker">
+            <div class="modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+                <div class="modal__head">
+                    <h2>@(_pickerMeal is null ? "Основное блюдо" : (_pickerMeal.IsMain ? "Сменить ресторан" : $"Сменить ресторан: {_pickerMeal.Label}"))</h2>
+                    <button type="button" class="btn btn--icon" @onclick="ClosePicker" aria-label="Закрыть">✕</button>
+                </div>
+                @if (_pickerError is not null) { <div class="alert">@_pickerError</div> }
+                <div class="picker">
+                    @foreach (var r in _active)
+                    {
+                        <button type="button" class="picker__card @(_pickerMeal?.RestaurantId == r.Id ? "picker__card--selected" : "")"
+                                disabled="@_busy" @onclick="() => PickRestaurant(r.Id)">
+                            <RestaurantThumb Name="@r.Name" ImageFile="@r.ImageFile" CssClass="thumb--card" />
+                            <span class="picker__name">@r.Name</span>
+                        </button>
+                    }
+                </div>
+                <div class="modal__foot">
+                    <button type="button" class="btn" @onclick="ClosePicker">Отмена</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string DateKey { get; set; } = "";
+
+    private DateOnly? _date;
+    private DayDetails? _day;
+    private List<Restaurant> _active = new();
+    private List<Person> _people = new();
+    private string? _error;
+    private bool _busy;
+
+    private bool _addExtra;
+    private string _extraLabel = "";
+    private string _extraRestaurantId = "";
+
+    private bool _pickerOpen;
+    private Meal? _pickerMeal;
+    private string? _pickerError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _date = DateOnly.TryParseExact(DateKey, "yyyy-MM-dd", out var d) ? d : null;
+        _day = null;
+        _error = null;
+        _addExtra = false;
+        _pickerOpen = false;
+        if (_date is { } date && !CalendarService.IsWeekend(date))
+            await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_date is not { } date) return;
+        _day = await Meals.GetDayAsync(date);
+        _active = await RestaurantSvc.GetActiveAsync();
+        _people = await PeopleSvc.GetAllAsync();
+    }
+
+    private void Shift(int days)
+    {
+        if (_date is not { } date) return;
+        var next = date.AddDays(days);
+        // пропускаем выходные
+        while (CalendarService.IsWeekend(next)) next = next.AddDays(days);
+        Nav.NavigateTo("/day/" + CalendarService.Key(next));
+    }
+
+    private async Task AddExtra()
+    {
+        if (_date is not { } date) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            if (!long.TryParse(_extraRestaurantId, out var rid))
+                throw new ValidationException("Выберите ресторан.");
+            await Meals.AddExtraAsync(date, rid, _extraLabel);
+            _extraLabel = "";
+            _extraRestaurantId = "";
+            _addExtra = false;
+            await ReloadAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteMeal(Meal meal)
+    {
+        _error = null;
+        try
+        {
+            await Meals.DeleteMealAsync(meal.Id);
+            await ReloadAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void OpenPicker(Meal? meal)
+    {
+        _pickerMeal = meal;
+        _pickerError = null;
+        _pickerOpen = true;
+    }
+
+    private void ClosePicker()
+    {
+        _pickerOpen = false;
+        _pickerMeal = null;
+    }
+
+    private async Task PickRestaurant(long restaurantId)
+    {
+        if (_date is not { } date) return;
+        _busy = true;
+        _pickerError = null;
+        try
+        {
+            if (_pickerMeal is null)
+                await Meals.AssignMainAsync(date, restaurantId);
+            else
+                await Meals.ChangeRestaurantAsync(_pickerMeal.Id, restaurantId);
+            ClosePicker();
+            await ReloadAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _pickerError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

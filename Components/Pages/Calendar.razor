@@ -1,0 +1,245 @@
+@page "/"
+@inject CalendarService CalendarSvc
+@inject MealService Meals
+@inject RestaurantService RestaurantSvc
+@inject PeopleService PeopleSvc
+@inject ChangeNotifier Notifier
+@implements IDisposable
+
+<PageTitle>Календарь еды</PageTitle>
+
+<div class="cal-toolbar">
+    <div class="cal-nav">
+        <button type="button" class="btn btn--icon" @onclick="PrevMonth" title="Предыдущий месяц" aria-label="Предыдущий месяц">‹</button>
+        <h1 class="cal-title">@(_grid?.Title ?? "…")</h1>
+        <button type="button" class="btn btn--icon" @onclick="NextMonth" title="Следующий месяц" aria-label="Следующий месяц">›</button>
+    </div>
+    <button type="button" class="btn" @onclick="GoToday">Сегодня</button>
+</div>
+
+@if (_grid is null)
+{
+    <p class="muted">Загрузка…</p>
+}
+else
+{
+    <div class="cal">
+        <div class="cal-weekdays">
+            @for (var i = 0; i < 7; i++)
+            {
+                <div class="cal-weekday @(i >= 5 ? "cal-weekday--weekend" : "")">@WeekdayHeaders[i]</div>
+            }
+        </div>
+        @foreach (var week in _grid.Weeks)
+        {
+            <div class="cal-week">
+                @foreach (var day in week)
+                {
+                    var cls = CellClass(day);
+                    if (day.IsWeekend)
+                    {
+                        <div class="@cls" aria-disabled="true" title="Выходной">
+                            <span class="cal-daynum">@day.Date.Day</span>
+                            <span class="cal-off">выходной</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <button type="button" class="@cls" @onclick="() => OpenDialog(day)">
+                            <span class="cal-daynum">@day.Date.Day</span>
+                            @if (day.Main is { } m)
+                            {
+                                <RestaurantThumb Name="@m.RestaurantName" ImageFile="@m.ImageFile" CssClass="thumb--cell" />
+                                <span class="cal-rname">@m.RestaurantName</span>
+                            }
+                            else
+                            {
+                                <span class="cal-empty">+</span>
+                            }
+                            @if (day.ExtrasCount > 0 || day.HasReceipt)
+                            {
+                                <span class="cal-badges">
+                                    @if (day.ExtrasCount > 0) { <span class="cal-badge" title="Дополнительные приёмы">+@day.ExtrasCount</span> }
+                                    @if (day.HasReceipt) { <span class="cal-badge cal-badge--receipt" title="Есть чек">🧾</span> }
+                                </span>
+                            }
+                        </button>
+                    }
+                }
+            </div>
+        }
+    </div>
+}
+
+<VotePanel OnCompleted="LoadAsync" KnownNames="_names" />
+
+@if (_dialogDay is { } dd)
+{
+    <div class="modal-backdrop" @onclick="CloseDialog">
+        <div class="modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal__head">
+                <h2>@CalendarService.FormatLong(dd.Date)</h2>
+                <button type="button" class="btn btn--icon" @onclick="CloseDialog" title="Закрыть" aria-label="Закрыть">✕</button>
+            </div>
+
+            @if (dd.Main is { } cur)
+            {
+                <p class="muted">Основное: <b>@cur.RestaurantName</b>@(cur.IsActive ? "" : " (ресторан деактивирован)")</p>
+            }
+            else
+            {
+                <p class="muted">Основное блюдо не выбрано. Выберите ресторан:</p>
+            }
+
+            @if (_error is not null)
+            {
+                <div class="alert">@_error</div>
+            }
+
+            @if (_active.Count == 0)
+            {
+                <p>Нет активных ресторанов. <a href="/restaurants">Добавить ресторан</a></p>
+            }
+
+            <div class="picker">
+                @foreach (var r in _active)
+                {
+                    <button type="button"
+                            class="picker__card @(dd.Main?.RestaurantId == r.Id ? "picker__card--selected" : "")"
+                            disabled="@_busy"
+                            @onclick="() => Assign(r.Id)">
+                        <RestaurantThumb Name="@r.Name" ImageFile="@r.ImageFile" CssClass="thumb--card" />
+                        <span class="picker__name">@r.Name</span>
+                    </button>
+                }
+            </div>
+
+            <div class="modal__foot modal__foot--split">
+                <a class="btn" href="/day/@CalendarService.Key(dd.Date)">Детали дня: чек, участники, дополнительно →</a>
+                <span class="modal__foot-right">
+                    @if (dd.Main is not null)
+                    {
+                        <button type="button" class="btn btn--danger" disabled="@_busy" @onclick="Clear">Очистить</button>
+                    }
+                    <button type="button" class="btn" @onclick="CloseDialog">Отмена</button>
+                </span>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly string[] WeekdayHeaders = { "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс" };
+
+    private int _year;
+    private int _month;
+    private MonthGrid? _grid;
+    private CalendarDay? _dialogDay;
+    private List<Restaurant> _active = new();
+    private string? _error;
+    private bool _busy;
+    private List<string> _names = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = CalendarService.Today;
+        _year = today.Year;
+        _month = today.Month;
+        Notifier.Changed += OnChangedAsync;
+        _names = (await PeopleSvc.GetAllAsync()).Select(p => p.Name).ToList();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _grid = await CalendarSvc.BuildMonthAsync(_year, _month);
+
+    // Голосование завершилось или кто-то изменил календарь: обновляем сетку у всех открытых страниц
+    private Task OnChangedAsync() => InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+
+    public void Dispose() => Notifier.Changed -= OnChangedAsync;
+
+    private Task PrevMonth() => ShiftMonth(-1);
+
+    private Task NextMonth() => ShiftMonth(1);
+
+    private async Task ShiftMonth(int delta)
+    {
+        var d = new DateOnly(_year, _month, 1).AddMonths(delta);
+        _year = d.Year;
+        _month = d.Month;
+        await LoadAsync();
+    }
+
+    private async Task GoToday()
+    {
+        var today = CalendarService.Today;
+        _year = today.Year;
+        _month = today.Month;
+        await LoadAsync();
+    }
+
+    private static string CellClass(CalendarDay d)
+    {
+        var cls = "cal-cell";
+        if (!d.InMonth) cls += " cal-cell--other";
+        if (d.IsWeekend) cls += " cal-cell--weekend";
+        if (d.IsToday) cls += " cal-cell--today";
+        if (d.Main is not null) cls += " cal-cell--assigned";
+        return cls;
+    }
+
+    private async Task OpenDialog(CalendarDay day)
+    {
+        if (day.IsWeekend) return;
+        _error = null;
+        _active = await RestaurantSvc.GetActiveAsync();
+        _dialogDay = day;
+    }
+
+    private void CloseDialog()
+    {
+        _dialogDay = null;
+        _error = null;
+    }
+
+    private async Task Assign(long restaurantId)
+    {
+        if (_dialogDay is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Meals.AssignMainAsync(_dialogDay.Date, restaurantId);
+            await LoadAsync();
+            CloseDialog();
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Clear()
+    {
+        if (_dialogDay is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Meals.ClearMainAsync(_dialogDay.Date);
+            await LoadAsync();
+            CloseDialog();
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

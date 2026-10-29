@@ -1,0 +1,269 @@
+@implements IDisposable
+@inject VoteService Votes
+@inject RestaurantService RestaurantSvc
+@inject ChangeNotifier Notifier
+@inject IJSRuntime JS
+
+<section class="vote">
+    <div class="section__head">
+        <h2>Голосование на сегодня <span class="muted small">@CalendarService.FormatLong(CalendarService.Today)</span></h2>
+        @if (_vote is { IsOpen: true })
+        {
+            <span class="vote__count">Проголосовало @_vote.VotedCount @Plural(_vote.VotedCount, "человек", "человека", "человек")</span>
+        }
+    </div>
+
+    @if (CalendarService.IsWeekend(CalendarService.Today))
+    {
+        <p class="muted">Сегодня выходной, голосование недоступно.</p>
+    }
+    else if (_loading)
+    {
+        <p class="muted">Загрузка…</p>
+    }
+    else
+    {
+        <div class="vote__name">
+            <label class="field">
+                <span class="field__label">Ваше имя</span>
+                <input class="input" list="people-list-vote" @bind="_name" @bind:after="SaveName" maxlength="60" placeholder="Как вас называть в голосовании" />
+            </label>
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="alert">@_error</div>
+        }
+
+        @if (_vote is { IsOpen: true } v)
+        {
+            <p class="muted small">
+                Раунд @v.Round · начал(а) @v.CreatedBy · завершили @v.FinishedCount из @v.Participants.Count.
+                @if (v.TieNames is not null)
+                {
+                    <b> Ничья между: @v.TieNames. Переголосуйте.</b>
+                }
+            </p>
+
+            <div class="vote__options">
+                @foreach (var o in v.Options)
+                {
+                    var checkedNow = _selected.Contains(o.Id);
+                    <label class="vote__option @(checkedNow ? "vote__option--on" : "")">
+                        <input type="checkbox" checked="@checkedNow" @onchange="e => Toggle(o.Id, e.Value is true)" />
+                        <RestaurantThumb Name="@o.RestaurantName" ImageFile="@o.ImageFile" CssClass="thumb--cell" />
+                        <span class="vote__option-name">@o.RestaurantName</span>
+                        <span class="vote__option-votes" title="Голосов">@o.Votes</span>
+                    </label>
+                }
+            </div>
+
+            <div class="vote__actions">
+                <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Cast">Голосовать</button>
+                <button type="button" class="btn" disabled="@(_busy || Me is not { HasVoted: true } || Me.IsFinished)" @onclick="Finish">
+                    @(Me is { IsFinished: true } ? "Вы завершили, ждём остальных" : "Завершить голосование")
+                </button>
+                <span class="vote__add">
+                    <select class="input" @bind="_addRestaurantId">
+                        <option value="">Добавить ресторан…</option>
+                        @foreach (var r in _active.Where(r => v.Options.All(o => o.RestaurantId != r.Id)))
+                        {
+                            <option value="@r.Id">@r.Name</option>
+                        }
+                    </select>
+                    <button type="button" class="btn btn--sm" disabled="@(_busy || _addRestaurantId == "")" @onclick="AddOption">Добавить</button>
+                </span>
+                @if (_confirmCancel)
+                {
+                    <span class="confirm">
+                        Отменить голосование для всех?
+                        <button type="button" class="btn btn--sm btn--danger" @onclick="Cancel">Да</button>
+                        <button type="button" class="btn btn--sm" @onclick="() => _confirmCancel = false">Нет</button>
+                    </span>
+                }
+                else
+                {
+                    <button type="button" class="btn btn--sm btn--danger vote__cancel" @onclick="() => _confirmCancel = true">Отменить</button>
+                }
+            </div>
+
+            <ul class="vote__people">
+                @foreach (var p in v.Participants)
+                {
+                    <li title="@(p.IsFinished ? "Завершил(а)" : p.HasVoted ? "Проголосовал(а), ещё не завершил(а)" : "Ещё не голосовал(а)")">
+                        <span>@(p.IsFinished ? "🏁" : p.HasVoted ? "✅" : "⏳")</span> @p.Name
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            @if (_vote is { IsFinished: true } f)
+            {
+                <p class="vote__result">
+                    🏆 Победил <b>@f.WinnerName</b> (раунд @f.Round), ресторан добавлен в календарь.
+                </p>
+            }
+
+            @if (!_starting)
+            {
+                <button type="button" class="btn btn--primary" @onclick="() => _starting = true">Начать голосование</button>
+            }
+            else
+            {
+                <p class="muted small">Отметьте минимум два ресторана и нажмите «Начать». Остальные увидят голосование и присоединятся.</p>
+                <div class="vote__options">
+                    @foreach (var r in _active)
+                    {
+                        var on = _startIds.Contains(r.Id);
+                        <label class="vote__option @(on ? "vote__option--on" : "")">
+                            <input type="checkbox" checked="@on" @onchange="e => ToggleStart(r.Id, e.Value is true)" />
+                            <RestaurantThumb Name="@r.Name" ImageFile="@r.ImageFile" CssClass="thumb--cell" />
+                            <span class="vote__option-name">@r.Name</span>
+                        </label>
+                    }
+                </div>
+                <div class="vote__actions">
+                    <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Start">Начать</button>
+                    <button type="button" class="btn" @onclick="() => _starting = false">Отмена</button>
+                </div>
+            }
+        }
+    }
+</section>
+
+<datalist id="people-list-vote">
+    @foreach (var n in _knownNames) { <option value="@n" /> }
+</datalist>
+
+@code {
+    /// <summary>Вызывается, когда голосование завершилось и победитель попал в календарь.</summary>
+    [Parameter] public EventCallback OnCompleted { get; set; }
+    [Parameter] public List<string> KnownNames { get; set; } = new();
+
+    private Vote? _vote;
+    private List<Restaurant> _active = new();
+    private List<string> _knownNames = new();
+    private readonly HashSet<long> _selected = new();
+    private readonly HashSet<long> _startIds = new();
+    private string _name = "";
+    private string _addRestaurantId = "";
+    private bool _starting;
+    private bool _confirmCancel;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+    private long? _lastVoteId;
+    private int _lastRound;
+
+    private VoteParticipant? Me =>
+        _vote?.Participants.FirstOrDefault(p => string.Equals(p.Name, _name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnInitialized() => Notifier.Changed += OnChangedAsync;
+
+    protected override void OnParametersSet() => _knownNames = KnownNames;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { _name = await JS.InvokeAsync<string>("userName.get") ?? ""; }
+        catch (JSException) { }
+        await LoadAsync();
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadAsync()
+    {
+        _active = await RestaurantSvc.GetActiveAsync();
+        _vote = await Votes.GetTodayAsync();
+        // при новом голосовании или новом раунде сбрасываем локальный выбор, иначе подтягиваем свой голос
+        if (_vote?.Id != _lastVoteId || _vote?.Round != _lastRound)
+        {
+            _selected.Clear();
+            _lastVoteId = _vote?.Id;
+            _lastRound = _vote?.Round ?? 0;
+        }
+        if (_vote is { IsOpen: true } && Me is { HasVoted: true } me && _selected.Count == 0)
+            foreach (var id in me.OptionIds) _selected.Add(id);
+    }
+
+    private async Task OnChangedAsync()
+    {
+        var wasOpen = _vote is { IsOpen: true };
+        await InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+            if (wasOpen && _vote is { IsFinished: true })
+                await OnCompleted.InvokeAsync();
+        });
+    }
+
+    private async Task SaveName()
+    {
+        try { await JS.InvokeVoidAsync("userName.set", _name.Trim()); } catch (JSException) { }
+    }
+
+    private void Toggle(long optionId, bool on) { if (on) _selected.Add(optionId); else _selected.Remove(optionId); }
+
+    private void ToggleStart(long restaurantId, bool on) { if (on) _startIds.Add(restaurantId); else _startIds.Remove(restaurantId); }
+
+    private async Task Run(Func<Task> action)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await action();
+            await LoadAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task Start() => Run(async () =>
+    {
+        await Votes.StartAsync(_name, _startIds.ToList());
+        _starting = false;
+        _startIds.Clear();
+    });
+
+    private Task Cast() => Run(() => Votes.CastAsync(_vote!.Id, _name, _selected.ToList()));
+
+    private Task Finish() => Run(async () =>
+    {
+        await Votes.FinishAsync(_vote!.Id, _name);
+        if ((await Votes.GetTodayAsync()) is { IsFinished: true })
+            await OnCompleted.InvokeAsync();
+    });
+
+    private Task AddOption() => Run(async () =>
+    {
+        if (!long.TryParse(_addRestaurantId, out var rid)) throw new ValidationException("Выберите ресторан.");
+        await Votes.AddOptionAsync(_vote!.Id, _name, rid);
+        _addRestaurantId = "";
+    });
+
+    private Task Cancel() => Run(async () =>
+    {
+        await Votes.CancelAsync(_vote!.Id);
+        _confirmCancel = false;
+    });
+
+    private static string Plural(int n, string one, string few, string many)
+    {
+        var m10 = n % 10; var m100 = n % 100;
+        if (m10 == 1 && m100 != 11) return one;
+        if (m10 is >= 2 and <= 4 && m100 is < 12 or > 14) return few;
+        return many;
+    }
+
+    public void Dispose() => Notifier.Changed -= OnChangedAsync;
+}

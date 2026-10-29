@@ -1,0 +1,399 @@
+@page "/restaurants"
+@implements IAsyncDisposable
+@inject RestaurantService RestaurantSvc
+@inject ImageService Images
+@inject IJSRuntime JS
+
+<PageTitle>Рестораны</PageTitle>
+
+<div class="page-head">
+    <h1>Рестораны</h1>
+    <button type="button" class="btn btn--primary" @onclick="StartCreate">+ Добавить</button>
+</div>
+
+@if (_list is null)
+{
+    <p class="muted">Загрузка…</p>
+}
+else if (_list.Count == 0)
+{
+    <p class="muted">Ресторанов пока нет.</p>
+}
+else
+{
+    <ul class="rlist">
+        @foreach (var r in _list)
+        {
+            <li class="rlist__item @(r.IsActive ? "" : "rlist__item--inactive")">
+                <RestaurantThumb Name="@r.Name" ImageFile="@r.ImageFile" CssClass="thumb--row" />
+                <div class="rlist__name">
+                    @r.Name
+                    @if (!r.IsActive)
+                    {
+                        <span class="badge">неактивен</span>
+                    }
+                </div>
+                <div class="rlist__actions">
+                    <button type="button" class="btn btn--sm" @onclick="() => OpenMenu(r)">Меню (@(_itemCounts.GetValueOrDefault(r.Id)))</button>
+                    <button type="button" class="btn btn--sm" @onclick="() => StartEdit(r)">Изменить</button>
+                    @if (r.IsActive)
+                    {
+                        if (_confirmId == r.Id)
+                        {
+                            <span class="confirm">
+                                Точно?
+                                <button type="button" class="btn btn--sm btn--danger" @onclick="() => Deactivate(r.Id)">Да</button>
+                                <button type="button" class="btn btn--sm" @onclick="() => _confirmId = null">Нет</button>
+                            </span>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn--sm btn--danger" @onclick="() => _confirmId = r.Id">Деактивировать</button>
+                        }
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn--sm" @onclick="() => Activate(r.Id)">Восстановить</button>
+                    }
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+@if (_menuRestaurant is { } mr)
+{
+    <div class="modal-backdrop" @onclick="CloseMenu">
+        <div class="modal modal--narrow" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal__head">
+                <h2>Меню: @mr.Name</h2>
+                <button type="button" class="btn btn--icon" @onclick="CloseMenu" title="Закрыть" aria-label="Закрыть">✕</button>
+            </div>
+            <p class="muted small">Позиции подставляются как подсказки при вводе на странице дня. Цена необязательна.</p>
+
+            @if (_menuError is not null)
+            {
+                <div class="alert">@_menuError</div>
+            }
+
+            <form class="inline-form inline-form--wrap" @onsubmit="SaveMenuItem" @onsubmit:preventDefault="true">
+                <input class="input input--grow" @bind="_menuName" maxlength="100" placeholder="Название" />
+                <input class="input input--num" type="number" step="0.01" min="0" @bind="_menuPrice" placeholder="Цена" />
+                <button type="submit" class="btn btn--sm btn--primary" disabled="@_busy">@(_menuEditId is null ? "Добавить" : "Сохранить")</button>
+                @if (_menuEditId is not null)
+                {
+                    <button type="button" class="btn btn--sm" @onclick="ResetMenuForm">Отмена</button>
+                }
+            </form>
+
+            @if (_menuItems.Count == 0)
+            {
+                <p class="muted">Меню пока пустое.</p>
+            }
+            else
+            {
+                <ul class="menu-list">
+                    @foreach (var it in _menuItems)
+                    {
+                        <li>
+                            <span class="menu-list__name">@it.Name</span>
+                            <span class="menu-list__price">@Money.Format(it.Price)</span>
+                            <button type="button" class="btn btn--icon btn--xs" title="Изменить" @onclick="() => EditMenuItem(it)">✎</button>
+                            <button type="button" class="btn btn--icon btn--xs" title="Удалить" @onclick="() => DeleteMenuItem(it.Id)">✕</button>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <div class="modal__foot">
+                <button type="button" class="btn" @onclick="CloseMenu">Закрыть</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_form is { } f)
+{
+    <div class="modal-backdrop" @onclick="CancelForm">
+        <div class="modal modal--narrow" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal__head">
+                <h2>@(f.Id is null ? "Новый ресторан" : "Редактирование")</h2>
+                <button type="button" class="btn btn--icon" @onclick="CancelForm" title="Закрыть" aria-label="Закрыть">✕</button>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="alert">@_error</div>
+            }
+
+            <label class="field">
+                <span class="field__label">Название</span>
+                <input class="input" @bind="f.Name" maxlength="100" placeholder="Например, Пицца Неаполь" />
+            </label>
+
+            <div class="field">
+                <span class="field__label">Картинка (JPG, PNG, WebP или SVG, до 2 МБ)</span>
+                <div class="image-row">
+                    @if (_previewUrl is not null)
+                    {
+                        <img class="thumb thumb--card" src="@_previewUrl" alt="Предпросмотр" />
+                    }
+                    else
+                    {
+                        <RestaurantThumb Name="@(string.IsNullOrWhiteSpace(f.Name) ? "?" : f.Name)"
+                                         ImageFile="@(f.RemoveImage ? null : f.ImageFile)"
+                                         CssClass="thumb--card" />
+                    }
+                    <div class="image-row__controls">
+                        <div class="dropzone" @ref="_dropZone">
+                            <InputFile OnChange="OnFileSelected" accept="@ImageService.Accept" class="dropzone__input" title="Выбрать файл" />
+                            <div class="dropzone__label">
+                                <span class="dropzone__title">Перетащите картинку сюда</span>
+                                <span class="dropzone__hint">или нажмите, чтобы выбрать файл. Из буфера: <kbd>Ctrl</kbd>+<kbd>V</kbd></span>
+                            </div>
+                        </div>
+                        @if (_file is not null)
+                        {
+                            <div class="muted small">
+                                Выбран файл: @_file.Name (@((_file.Size + 1023) / 1024) КБ)
+                                <button type="button" class="btn btn--sm" @onclick="ClearFile">Убрать</button>
+                            </div>
+                        }
+                        @if (f.ImageFile is not null && _file is null)
+                        {
+                            <label class="check"><input type="checkbox" @bind="f.RemoveImage" /> Убрать текущую картинку</label>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal__foot">
+                <button type="button" class="btn btn--primary" disabled="@_busy" @onclick="Save">Сохранить</button>
+                <button type="button" class="btn" disabled="@_busy" @onclick="CancelForm">Отмена</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private sealed class FormModel
+    {
+        public long? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? ImageFile { get; set; }
+        public bool RemoveImage { get; set; }
+    }
+
+    private List<Restaurant>? _list;
+    private FormModel? _form;
+    private IBrowserFile? _file;
+    private byte[]? _fileBytes;
+    private string? _previewUrl;
+    private string? _error;
+    private bool _busy;
+    private long? _confirmId;
+
+    private ElementReference _dropZone;
+    private IJSObjectReference? _dropHandle;
+
+    // Меню ресторана
+    private Dictionary<long, int> _itemCounts = new();
+    private Restaurant? _menuRestaurant;
+    private List<RestaurantItem> _menuItems = new();
+    private string _menuName = "";
+    private decimal? _menuPrice;
+    private long? _menuEditId;
+    private string? _menuError;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task OpenMenu(Restaurant r)
+    {
+        _menuRestaurant = r;
+        _menuError = null;
+        ResetMenuForm();
+        _menuItems = await RestaurantSvc.GetItemsAsync(r.Id);
+    }
+
+    private void CloseMenu()
+    {
+        _menuRestaurant = null;
+        _menuItems = new();
+    }
+
+    private void ResetMenuForm()
+    {
+        _menuEditId = null;
+        _menuName = "";
+        _menuPrice = null;
+    }
+
+    private void EditMenuItem(RestaurantItem it)
+    {
+        _menuEditId = it.Id;
+        _menuName = it.Name;
+        _menuPrice = it.Price;
+    }
+
+    private async Task SaveMenuItem()
+    {
+        if (_menuRestaurant is null) return;
+        _busy = true;
+        _menuError = null;
+        try
+        {
+            if (_menuEditId is { } id)
+                await RestaurantSvc.UpdateItemAsync(id, _menuName, _menuPrice);
+            else
+                await RestaurantSvc.SaveItemAsync(_menuRestaurant.Id, _menuName, _menuPrice);
+            ResetMenuForm();
+            _menuItems = await RestaurantSvc.GetItemsAsync(_menuRestaurant.Id);
+            _itemCounts = await RestaurantSvc.GetItemCountsAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _menuError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteMenuItem(long id)
+    {
+        if (_menuRestaurant is null) return;
+        await RestaurantSvc.DeleteItemAsync(id);
+        if (_menuEditId == id) ResetMenuForm();
+        _menuItems = await RestaurantSvc.GetItemsAsync(_menuRestaurant.Id);
+        _itemCounts = await RestaurantSvc.GetItemCountsAsync();
+    }
+
+    // Зона drag-and-drop / Ctrl+V живёт только пока открыта форма.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_form is not null && _dropHandle is null)
+            _dropHandle = await JS.InvokeAsync<IJSObjectReference>("dropZone.init", _dropZone);
+        else if (_form is null && _dropHandle is not null)
+            await DisposeDropZoneAsync();
+    }
+
+    private async Task DisposeDropZoneAsync()
+    {
+        var handle = _dropHandle;
+        _dropHandle = null;
+        if (handle is null) return;
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    public async ValueTask DisposeAsync() => await DisposeDropZoneAsync();
+
+    private async Task LoadAsync()
+    {
+        _list = await RestaurantSvc.GetAllAsync();
+        _itemCounts = await RestaurantSvc.GetItemCountsAsync();
+    }
+
+    private void StartCreate()
+    {
+        _form = new FormModel();
+        ClearFile();
+        _error = null;
+    }
+
+    private void StartEdit(Restaurant r)
+    {
+        _form = new FormModel { Id = r.Id, Name = r.Name, ImageFile = r.ImageFile };
+        ClearFile();
+        _error = null;
+    }
+
+    private void CancelForm()
+    {
+        _form = null;
+        ClearFile();
+        _error = null;
+    }
+
+    private void ClearFile()
+    {
+        _file = null;
+        _fileBytes = null;
+        _previewUrl = null;
+    }
+
+    /// <summary>Срабатывает при выборе файла, drag-and-drop и Ctrl+V (JS подкладывает файл в InputFile).</summary>
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        ClearFile();
+        try
+        {
+            _fileBytes = await Images.ReadAndValidateAsync(e.File);
+            _file = e.File;
+            _previewUrl = ImageService.ToDataUrl(_fileBytes);
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_form is null) return;
+        var f = _form;
+        _busy = true;
+        _error = null;
+        try
+        {
+            string? newFile = _fileBytes is not null ? await Images.SaveAsync(_fileBytes) : null;
+            var finalImage = newFile ?? (f.RemoveImage ? null : f.ImageFile);
+
+            try
+            {
+                if (f.Id is null)
+                    await RestaurantSvc.CreateAsync(f.Name, finalImage);
+                else
+                    await RestaurantSvc.UpdateAsync(f.Id.Value, f.Name, finalImage);
+            }
+            catch
+            {
+                Images.Delete(newFile); // не оставляем «осиротевший» файл
+                throw;
+            }
+
+            if (f.ImageFile is not null && finalImage != f.ImageFile)
+                Images.Delete(f.ImageFile);
+
+            CancelForm();
+            await LoadAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Deactivate(long id)
+    {
+        await RestaurantSvc.DeactivateAsync(id);
+        _confirmId = null;
+        await LoadAsync();
+    }
+
+    private async Task Activate(long id)
+    {
+        await RestaurantSvc.ActivateAsync(id);
+        await LoadAsync();
+    }
+}

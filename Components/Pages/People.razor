@@ -1,0 +1,91 @@
+@page "/people"
+@inject PeopleService PeopleSvc
+
+<PageTitle>Люди</PageTitle>
+
+<div class="page-head">
+    <h1>Люди</h1>
+</div>
+<p class="muted">Список участников для быстрого выбора на странице дня. Удаление из списка не затрагивает прошлые заказы.</p>
+
+<form class="inline-form" @onsubmit="Add" @onsubmit:preventDefault="true">
+    <input class="input" @bind="_name" maxlength="60" placeholder="Имя" />
+    <button type="submit" class="btn btn--primary" disabled="@_busy">Добавить</button>
+</form>
+@if (_error is not null)
+{
+    <div class="alert">@_error</div>
+}
+
+@if (_list is null)
+{
+    <p class="muted">Загрузка…</p>
+}
+else if (_list.Count == 0)
+{
+    <p class="muted">Список пуст.</p>
+}
+else
+{
+    <ul class="rlist">
+        @foreach (var p in _list)
+        {
+            <li class="rlist__item">
+                <div class="rlist__name">@p.Name</div>
+                <div class="rlist__actions">
+                    @if (_confirmId == p.Id)
+                    {
+                        <span class="confirm">
+                            Точно?
+                            <button type="button" class="btn btn--sm btn--danger" @onclick="() => Delete(p.Id)">Да</button>
+                            <button type="button" class="btn btn--sm" @onclick="() => _confirmId = null">Нет</button>
+                        </span>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn--sm btn--danger" @onclick="() => _confirmId = p.Id">Удалить</button>
+                    }
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private List<Person>? _list;
+    private string _name = "";
+    private string? _error;
+    private bool _busy;
+    private long? _confirmId;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync() => _list = await PeopleSvc.GetAllAsync();
+
+    private async Task Add()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await PeopleSvc.GetOrCreateAsync(_name);
+            _name = "";
+            await LoadAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Delete(long id)
+    {
+        await PeopleSvc.DeleteAsync(id);
+        _confirmId = null;
+        await LoadAsync();
+    }
+}
