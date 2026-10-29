@@ -126,6 +126,7 @@ public static class Texts
         Add("meal.removeReceipt", "Убрать чек", "Remove receipt", "Chekni olib tashlash");
         Add("meal.attachReceipt", "📎 Прикрепить чек", "📎 Attach receipt", "📎 Chek biriktirish");
         Add("meal.receiptHint", "Картинка или PDF, до 10 МБ", "Image or PDF, up to 10 MB", "Rasm yoki PDF, 10 MB gacha");
+        Add("meal.pasteHint", "Перетащите файл сюда или наведите и вставьте из буфера: Ctrl+V", "Drop a file here, or hover and paste from clipboard: Ctrl+V", "Faylni shu yerga tashlang yoki ustiga olib kelib buferdan qo‘ying: Ctrl+V");
         Add("meal.total", "Итого по чеку", "Receipt total", "Chek bo‘yicha jami");
         Add("meal.totalHint", "Считается из позиций участников и общих сборов", "Calculated from participants’ items and shared fees", "Ishtirokchilar pozitsiyalari va umumiy yig‘imlardan hisoblanadi");
         Add("meal.totalSplit", "личные {0} + общие {1}", "own {0} + shared {1}", "shaxsiy {0} + umumiy {1}");

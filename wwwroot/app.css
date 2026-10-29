@@ -544,3 +544,5 @@ button.pay:hover { filter: brightness(.95); }
 .rcpt-bar__right { display: inline-flex; gap: 8px; flex-wrap: wrap; }
 .receipt__links { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .rcpt__download { margin-top: 8px; }
+.dropzone--mini { padding: 10px 12px; display: grid; gap: 4px; justify-items: start; outline: none; }
+.dropzone--mini:focus-visible { border-color: var(--primary); }

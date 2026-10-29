@@ -1,6 +1,8 @@
 @inject MealService Meals
 @inject RestaurantService RestaurantSvc
 @inject I18n L
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 @inject AdminSession Session
 
 <div class="meal">
@@ -69,11 +71,15 @@
             }
             else if (Session.IsAdmin)
             {
-                <label class="btn btn--sm file-btn">
-                    @L["meal.attachReceipt"]
-                    <InputFile OnChange="OnReceipt" accept="@ReceiptService.Accept" class="file-btn__input" />
-                </label>
-                <div class="muted small">@L["meal.receiptHint"]</div>
+                @* Зона приёма файла: кнопка, перетаскивание и Ctrl+V (dropzone.js, scoped — только наведённая зона) *@
+                <div class="dropzone dropzone--mini" @ref="_dropZone" tabindex="0">
+                    <label class="btn btn--sm file-btn">
+                        @L["meal.attachReceipt"]
+                        <InputFile OnChange="OnReceipt" accept="@ReceiptService.Accept" class="file-btn__input" />
+                    </label>
+                    <div class="muted small">@L["meal.receiptHint"]</div>
+                    <div class="muted small">@L["meal.pasteHint"]</div>
+                </div>
             }
 
             <div class="field">
@@ -421,4 +427,33 @@
     });
 
     private Task RemoveShared(long id) => Run(() => Meals.RemoveSharedItemAsync(id));
+
+    // ---- перетаскивание и Ctrl+V для файла чека ----
+
+    private ElementReference _dropZone;
+    private IJSObjectReference? _dropHandle;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var wantZone = Session.IsAdmin && Meal.ReceiptFile is null;
+        if (wantZone && _dropHandle is null && _dropZone.Id is not null)
+            _dropHandle = await JS.InvokeAsync<IJSObjectReference>("dropZone.init", _dropZone, new { scoped = true, pdf = true });
+        else if (!wantZone && _dropHandle is not null)
+            await DisposeDropZoneAsync();
+    }
+
+    private async Task DisposeDropZoneAsync()
+    {
+        var handle = _dropHandle;
+        _dropHandle = null;
+        if (handle is null) return;
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    public async ValueTask DisposeAsync() => await DisposeDropZoneAsync();
 }
