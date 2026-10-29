@@ -10,7 +10,7 @@ public sealed class I18n
     public static readonly string[] Languages = { "ru", "en", "uz" };
     public static readonly (string Code, string Title)[] LanguageTitles =
     {
-        ("ru", "Русский"), ("en", "English"), ("uz", "O‘zbekcha")
+        ("ru", "Русский"), ("en", "English"), ("uz", "Özbekça")
     };
 
     public string Lang { get; private set; } = "ru";
